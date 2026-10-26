@@ -1,0 +1,75 @@
+import 'package:sqflite/sqflite.dart';
+
+import '../../domain/models/holiday_calendar.dart';
+import '../../domain/repositories/holiday_calendar_repository.dart';
+import '../services/attendance_database.dart';
+
+class SqliteHolidayCalendarRepository implements HolidayCalendarRepository {
+  const SqliteHolidayCalendarRepository(this._database);
+
+  final AttendanceDatabase _database;
+
+  @override
+  Future<HolidayCalendarYear?> getYear(int year) async {
+    final yearRows = await _database.database.query(
+      'holiday_calendar_years',
+      where: 'year = ?',
+      whereArgs: [year],
+      limit: 1,
+    );
+    if (yearRows.isEmpty) return null;
+
+    final dateRows = await _database.database.query(
+      'holiday_calendar',
+      where: 'year = ?',
+      whereArgs: [year],
+      orderBy: 'date_key ASC',
+    );
+    final metadata = yearRows.first;
+    return HolidayCalendarYear(
+      year: year,
+      region: metadata['region']! as String,
+      source: metadata['source']! as String,
+      importedAt: DateTime.parse(metadata['imported_at']! as String),
+      dates: dateRows
+          .map(
+            (row) => HolidayDate(
+              date: DateTime.parse(row['date_key']! as String),
+              name: row['name']! as String,
+              type: HolidayDateType.parse(row['type']! as String),
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  @override
+  Future<void> saveYear(HolidayCalendarYear calendar) async {
+    await _database.database.transaction((transaction) async {
+      await transaction.delete(
+        'holiday_calendar',
+        where: 'year = ?',
+        whereArgs: [calendar.year],
+      );
+      await transaction.insert('holiday_calendar_years', {
+        'year': calendar.year,
+        'region': calendar.region,
+        'source': calendar.source,
+        'imported_at': calendar.importedAt.toIso8601String(),
+      }, conflictAlgorithm: ConflictAlgorithm.replace);
+      for (final entry in calendar.dates) {
+        await transaction.insert('holiday_calendar', {
+          'date_key': _dateKey(entry.date),
+          'year': calendar.year,
+          'name': entry.name,
+          'type': entry.type.jsonValue,
+        });
+      }
+    });
+  }
+
+  String _dateKey(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
+}
