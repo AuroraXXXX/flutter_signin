@@ -17,82 +17,75 @@ class HistoryPage extends SignalWidget {
     final records = store.monthlyRecords.value;
     final month = store.selectedHistoryMonth.value;
     final summary = store.monthlySummary.value;
-    return CustomScrollView(
-      key: const PageStorageKey('history-list'),
-      slivers: [
-        const SliverAppBar.large(title: Text('签到历史')),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          sliver: SliverToBoxAdapter(
-            child: OutlinedButton.icon(
-              onPressed: () => _selectMonth(context),
-              icon: const Icon(Icons.calendar_month),
-              label: Text(
-                '${month.year}年${month.month.toString().padLeft(2, '0')}月',
-              ),
-              iconAlignment: IconAlignment.end,
-            ),
-          ),
-        ),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          sliver: SliverToBoxAdapter(
-            child: _MonthlySummaryCard(
-              summary: summary,
-              isLoading: store.isCalendarLoading.value,
-              error: store.calendarError.value,
-              onRetry: () =>
-                  store.loadCalendarForSelectedMonth(forceSync: true),
-            ),
-          ),
-        ),
-        if (records.isEmpty)
-          const SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(child: Text('该月暂无签到记录')),
-          )
-        else
+    return Scaffold(
+      appBar: AppBar(title: const Text('签到历史')),
+      body: CustomScrollView(
+        key: const PageStorageKey('history-list'),
+        slivers: [
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
-            sliver: SliverList.builder(
-              itemCount: records.length,
-              itemBuilder: (context, index) {
-                final record = records[index];
-                final evaluation = store.evaluate(record);
-                final isNormal = evaluation.isValid;
-                return Card(
-                  child: ListTile(
-                    onTap: () => _showDetails(context, record),
-                    leading: CircleAvatar(
-                      backgroundColor: isNormal
-                          ? Theme.of(context).colorScheme.primaryContainer
-                          : Theme.of(context).colorScheme.errorContainer,
-                      child: Icon(isNormal ? Icons.check : Icons.priority_high),
-                    ),
-                    title: Row(
-                      children: [
-                        Text(formatDate(record.date)),
-                        if (record.isManual) ...[
-                          const SizedBox(width: 8),
-                          const Chip(
-                            label: Text('补签'),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                        ],
-                      ],
-                    ),
-                    subtitle: Text(
-                      '${formatTime(record.firstCheckIn)} - '
-                      '${formatTime(record.lastCheckIn)}  ·  '
-                      '${formatDuration(evaluation.validMinutes)}',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                  ),
-                );
-              },
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            sliver: SliverToBoxAdapter(
+              child: _MonthlySummaryCard(
+                month: month,
+                summary: summary,
+                isLoading: store.isCalendarLoading.value,
+                error: store.calendarError.value,
+                onSelectMonth: () => _selectMonth(context),
+                onRetry: () =>
+                    store.loadCalendarForSelectedMonth(forceSync: true),
+              ),
             ),
           ),
-      ],
+          if (records.isEmpty)
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: Text('该月暂无签到记录')),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+              sliver: SliverList.builder(
+                itemCount: records.length,
+                itemBuilder: (context, index) {
+                  final record = records[index];
+                  final evaluation = store.evaluate(record);
+                  final isNormal = evaluation.isValid;
+                  return Card(
+                    child: ListTile(
+                      onTap: () => _showDetails(context, record),
+                      leading: CircleAvatar(
+                        backgroundColor: isNormal
+                            ? Theme.of(context).colorScheme.primaryContainer
+                            : Theme.of(context).colorScheme.errorContainer,
+                        child: Icon(
+                          isNormal ? Icons.check : Icons.priority_high,
+                        ),
+                      ),
+                      title: Row(
+                        children: [
+                          Text(formatDate(record.date)),
+                          if (record.isManual) ...[
+                            const SizedBox(width: 8),
+                            const Chip(
+                              label: Text('补签'),
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ],
+                        ],
+                      ),
+                      subtitle: Text(
+                        '${formatTime(record.firstCheckIn)} - '
+                        '${formatTime(record.lastCheckIn)}  ·  '
+                        '${formatDuration(evaluation.validDuration)}',
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -133,13 +126,18 @@ class HistoryPage extends SignalWidget {
               _DetailRow(label: '末次签到', value: formatTime(record.lastCheckIn)),
               _DetailRow(
                 label: '排除时长',
-                value: formatDuration(evaluation.excludedMinutes),
+                value: formatDuration(evaluation.excludedDuration),
               ),
               _DetailRow(
                 label: '有效工时',
-                value: formatDuration(evaluation.validMinutes),
+                value: formatDuration(evaluation.validDuration),
               ),
               _DetailRow(label: '状态', value: status),
+              if (evaluation.statuses.isNotEmpty)
+                _DetailRow(
+                  label: '考勤类别',
+                  value: evaluation.statuses.map(statusLabel).join('、'),
+                ),
               if (record.note.isNotEmpty)
                 _DetailRow(label: '备注', value: record.note),
             ],
@@ -152,15 +150,19 @@ class HistoryPage extends SignalWidget {
 
 class _MonthlySummaryCard extends StatelessWidget {
   const _MonthlySummaryCard({
+    required this.month,
     required this.summary,
     required this.isLoading,
     required this.error,
+    required this.onSelectMonth,
     required this.onRetry,
   });
 
   final MonthlyAttendanceSummary? summary;
+  final DateTime month;
   final bool isLoading;
   final String? error;
+  final VoidCallback onSelectMonth;
   final VoidCallback onRetry;
 
   @override
@@ -199,14 +201,39 @@ class _MonthlySummaryCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('月平均有效签到时长'),
-            const SizedBox(height: 6),
-            Text(
-              formatDuration(value.averageValidMinutes),
-              style: Theme.of(context).textTheme.headlineMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.topLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: onSelectMonth,
+                      icon: const Icon(Icons.calendar_month),
+                      label: Text(
+                        '${month.year}年${month.month.toString().padLeft(2, '0')}月',
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Text('月平均有效签到时长'),
+                      const SizedBox(height: 6),
+                      Text(
+                        formatMinutes(value.averageValidMinutes),
+                        textAlign: TextAlign.end,
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             Row(

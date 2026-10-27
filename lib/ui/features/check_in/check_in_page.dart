@@ -17,81 +17,85 @@ class CheckInPage extends SignalWidget {
     final evaluation = record == null ? null : store.evaluate(record);
     final colorScheme = Theme.of(context).colorScheme;
 
-    return CustomScrollView(
-      slivers: [
-        const SliverAppBar.large(title: Text('今日签到')),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-          sliver: SliverList.list(
-            children: [
-              const _CurrentTimeCard(),
-              const SizedBox(height: 16),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      _TimeRow(
-                        label: '首次签到',
-                        value: record == null
-                            ? '--:--'
-                            : formatTime(record.firstCheckIn),
-                      ),
-                      const Divider(height: 28),
-                      _TimeRow(
-                        label: '末次签到',
-                        value: record == null
-                            ? '--:--'
-                            : formatTime(record.lastCheckIn),
-                      ),
-                      const Divider(height: 28),
-                      _TimeRow(
-                        label: '有效工时',
-                        value: evaluation == null
-                            ? '--'
-                            : formatDuration(evaluation.validMinutes),
-                      ),
-                    ],
+    return Scaffold(
+      appBar: AppBar(title: const Text('今日签到')),
+      body: CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            sliver: SliverList.list(
+              children: [
+                const _CurrentTimeCard(),
+                const SizedBox(height: 16),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        _TimeRow(
+                          label: '首次签到',
+                          value: record == null
+                              ? '--:--'
+                              : formatTime(record.firstCheckIn),
+                        ),
+                        const Divider(height: 28),
+                        _TimeRow(
+                          label: '末次签到',
+                          value:
+                              record == null ||
+                                  record.lastCheckIn == record.firstCheckIn
+                              ? '--:--'
+                              : formatTime(record.lastCheckIn),
+                        ),
+                        const Divider(height: 28),
+                        _TimeRow(
+                          label: '有效工时',
+                          value: evaluation == null || evaluation.isInProgress
+                              ? '--'
+                              : formatDuration(evaluation.validDuration),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              if (record == null)
-                const _StatusBanner(label: '今日尚未签到', icon: Icons.schedule)
-              else if (evaluation!.isInProgress)
-                _StatusBanner(
-                  label: evaluation.issues.isEmpty
-                      ? '签到进行中'
-                      : evaluation.issues.map(issueLabel).join('、'),
-                  icon: evaluation.issues.isEmpty
-                      ? Icons.timelapse
-                      : Icons.warning_amber,
-                  isWarning: evaluation.issues.isNotEmpty,
-                )
-              else if (evaluation.isValid)
-                const _StatusBanner(label: '今日签到正常', icon: Icons.check_circle)
-              else
-                _StatusBanner(
-                  label: evaluation.issues.map(issueLabel).join('、'),
-                  icon: Icons.warning_amber,
-                  isWarning: true,
-                ),
-              const SizedBox(height: 24),
-              SizedBox(
-                height: 56,
-                child: FilledButton.icon(
-                  onPressed: () => _checkIn(context),
-                  icon: const Icon(Icons.fingerprint),
-                  label: Text(record == null ? '首次签到' : '更新末次签到'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: colorScheme.primary,
+                const SizedBox(height: 12),
+                if (record == null)
+                  const _StatusBanner(label: '今日尚未签到', icon: Icons.schedule)
+                else if (evaluation!.isInProgress)
+                  _StatusBanner(
+                    label: evaluation.issues.isEmpty
+                        ? '签到进行中'
+                        : evaluation.issues.map(issueLabel).join('、'),
+                    icon: evaluation.issues.isEmpty
+                        ? Icons.timelapse
+                        : Icons.warning_amber,
+                    isWarning: evaluation.issues.isNotEmpty,
+                  )
+                else if (evaluation.isValid)
+                  const _StatusBanner(label: '今日签到正常', icon: Icons.check_circle)
+                else
+                  _StatusBanner(
+                    label: evaluation.issues.map(issueLabel).join('、'),
+                    icon: Icons.warning_amber,
+                    isWarning: true,
+                  ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  height: 56,
+                  child: FilledButton.icon(
+                    onPressed: () => _checkIn(context),
+                    icon: const Icon(Icons.fingerprint),
+                    label: Text(record == null ? '首次签到' : '更新末次签到'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: colorScheme.primary,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -104,8 +108,9 @@ class CheckInPage extends SignalWidget {
       ).showSnackBar(SnackBar(content: Text(first ? '首次签到成功' : '末次签到时间已更新')));
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('签到失败：$error')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('签到失败：$error')));
     }
   }
 }
@@ -152,8 +157,9 @@ class _CurrentTimeCardState extends State<_CurrentTimeCard> {
             const SizedBox(height: 8),
             Text(
               '${formatTime(now)}:$seconds',
-              style: Theme.of(context).textTheme.displaySmall
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(
+                context,
+              ).textTheme.displaySmall?.copyWith(fontWeight: FontWeight.bold),
             ),
           ],
         ),

@@ -12,246 +12,369 @@ class CorrectionPage extends SignalWidget {
   final AppStore store;
 
   @override
-  Widget build(BuildContext context) {
-    final records = store.records.value;
-    return Scaffold(
-      appBar: AppBar(title: const Text('补签管理')),
-      body: records.isEmpty
-          ? const Center(child: Text('暂无记录，点击右下角添加补签'))
-          : ListView.builder(
-              key: const PageStorageKey('correction-list'),
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 88),
-              itemCount: records.length,
-              itemBuilder: (context, index) {
-                final record = records[index];
-                return Card(
-                  child: ListTile(
-                    title: Text(formatDate(record.date)),
-                    subtitle: Text(
-                      '${formatTime(record.firstCheckIn)} - ${formatTime(record.lastCheckIn)}'
-                      '${record.note.isEmpty ? '' : '\n${record.note}'}',
-                    ),
-                    isThreeLine: record.note.isNotEmpty,
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (value) {
-                        if (value == 'edit') {
-                          _openEditor(context, record);
-                        } else {
-                          _delete(context, record);
-                        }
-                      },
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(value: 'edit', child: Text('编辑')),
-                        PopupMenuItem(value: 'delete', child: Text('删除')),
-                      ],
-                    ),
-                    onTap: () => _openEditor(context, record),
-                  ),
-                );
-              },
-            ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openEditor(context, null),
-        icon: const Icon(Icons.add),
-        label: const Text('新增补签'),
-      ),
-    );
-  }
-
-  Future<void> _openEditor(
-    BuildContext context,
-    AttendanceRecord? record,
-  ) async {
-    final result = await showDialog<AttendanceRecord>(
-      context: context,
-      builder: (context) => AttendanceEditorDialog(record: record),
-    );
-    if (result == null || !context.mounted) return;
-    try {
-      await store.saveManualRecord(result);
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('记录已保存')));
-    } catch (error) {
-      if (!context.mounted) return;
-      final message = error.toString().contains('UNIQUE constraint failed')
-          ? '该日期已经存在签到记录'
-          : '保存失败：$error';
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
-    }
-  }
-
-  Future<void> _delete(BuildContext context, AttendanceRecord record) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('删除签到记录？'),
-        content: Text('将删除 ${formatDate(record.date)} 的记录，此操作无法撤销。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('删除'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !context.mounted) return;
-    await store.deleteRecord(record);
-  }
+  Widget build(BuildContext context) => _CorrectionForm(
+    key: const PageStorageKey('correction-form'),
+    store: store,
+    records: store.records.value,
+  );
 }
 
-class AttendanceEditorDialog extends SignalStatefulWidget {
-  const AttendanceEditorDialog({super.key, this.record});
+class _CorrectionForm extends StatefulWidget {
+  const _CorrectionForm({
+    super.key,
+    required this.store,
+    required this.records,
+  });
 
-  final AttendanceRecord? record;
+  final AppStore store;
+  final List<AttendanceRecord> records;
 
   @override
-  State<AttendanceEditorDialog> createState() => _AttendanceEditorDialogState();
+  State<_CorrectionForm> createState() => _CorrectionFormState();
 }
 
-class _AttendanceEditorDialogState extends State<AttendanceEditorDialog> {
-  late final Signal<DateTime> _date;
-  late final Signal<TimeOfDay> _firstTime;
-  late final Signal<TimeOfDay> _lastTime;
-  late final TextEditingController _noteController;
-  final _error = signal<String?>(null);
+class _CorrectionFormState extends State<_CorrectionForm> {
+  DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+  DateTime? _date;
+  TimeOfDay? _firstTime;
+  TimeOfDay? _lastTime;
+  final _noteController = TextEditingController();
+  String? _error;
+  bool _isSaving = false;
 
-  @override
-  void initState() {
-    super.initState();
+  DateTime get _today {
     final now = DateTime.now();
-    final record = widget.record;
-    _date = signal(record?.date ?? DateTime(now.year, now.month, now.day));
-    _firstTime = signal(
-      record == null
-          ? const TimeOfDay(hour: 9, minute: 0)
-          : TimeOfDay.fromDateTime(record.firstCheckIn),
-    );
-    _lastTime = signal(
-      record == null
-          ? const TimeOfDay(hour: 18, minute: 0)
-          : TimeOfDay.fromDateTime(record.lastCheckIn),
-    );
-    _noteController = TextEditingController(text: record?.note ?? '');
+    return DateTime(now.year, now.month, now.day);
   }
 
   @override
   void dispose() {
     _noteController.dispose();
-    _date.dispose();
-    _firstTime.dispose();
-    _lastTime.dispose();
-    _error.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text(widget.record == null ? '新增补签' : '编辑签到记录'),
-      content: SingleChildScrollView(
-        child: SizedBox(
-          width: 360,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.calendar_today),
-                title: const Text('日期'),
-                subtitle: Text(formatDate(_date.value)),
-                onTap: _pickDate,
+    final colorScheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      appBar: AppBar(title: const Text('补签管理')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+        children: [
+          _buildCalendar(context),
+          const SizedBox(height: 20),
+          Text('补签信息', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: Column(
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.calendar_today),
+                    title: const Text('日期'),
+                    subtitle: Text(
+                      _date == null ? '请选择日期' : formatDate(_date!),
+                    ),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.login),
+                    title: const Text('首次时间'),
+                    subtitle: Text(
+                      _firstTime == null
+                          ? '请选择时间'
+                          : _firstTime!.format(context),
+                    ),
+                    onTap: _date == null ? null : () => _pickTime(first: true),
+                  ),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.logout),
+                    title: const Text('末次时间'),
+                    subtitle: Text(
+                      _lastTime == null ? '请选择时间' : _lastTime!.format(context),
+                    ),
+                    onTap: _date == null ? null : () => _pickTime(first: false),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _noteController,
+                    maxLines: 2,
+                    decoration: const InputDecoration(labelText: '备注（可选）'),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        _error!,
+                        style: TextStyle(color: colorScheme.error),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton.icon(
+                      onPressed: _isSaving ? null : _submit,
+                      icon: const Icon(Icons.save),
+                      label: Text(_isSaving ? '保存中…' : '保存补签'),
+                    ),
+                  ),
+                ],
               ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.login),
-                title: const Text('首次签到'),
-                subtitle: Text(_firstTime.value.format(context)),
-                onTap: () => _pickTime(first: true),
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.logout),
-                title: const Text('末次签到'),
-                subtitle: Text(_lastTime.value.format(context)),
-                onTap: () => _pickTime(first: false),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _noteController,
-                maxLines: 2,
-                decoration: const InputDecoration(labelText: '备注（可选）'),
-              ),
-              if (_error.value != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  _error.value!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ],
-            ],
+            ),
           ),
-        ),
+          const SizedBox(height: 12),
+          Text(
+            '绿色表示签到正常，红色表示签到时间或有效工时异常。未来日期不可选择。',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('取消'),
-        ),
-        FilledButton(onPressed: _submit, child: const Text('保存')),
-      ],
     );
   }
 
-  Future<void> _pickDate() async {
-    final value = await showCupertinoDatePicker(
-      context: context,
-      initialDate: _date.value,
-      minimumDate: DateTime(2000),
-      maximumDate: DateTime.now(),
+  Widget _buildCalendar(BuildContext context) {
+    final firstDay = DateTime(_month.year, _month.month, 1);
+    final daysInMonth = DateTime(_month.year, _month.month + 1, 0).day;
+    final leading = firstDay.weekday - DateTime.monday;
+    final count = ((leading + daysInMonth + 6) ~/ 7) * 7;
+    final currentMonth = DateTime(_today.year, _today.month);
+    final canGoNext = _month.isBefore(currentMonth);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 14),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  tooltip: '上个月',
+                  onPressed: _month.year == 2000 && _month.month == 1
+                      ? null
+                      : _previousMonth,
+                  icon: const Icon(Icons.chevron_left),
+                ),
+                Text(
+                  '${_month.year}年${_month.month}月',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                IconButton(
+                  tooltip: '下个月',
+                  onPressed: canGoNext ? _nextMonth : null,
+                  icon: const Icon(Icons.chevron_right),
+                ),
+              ],
+            ),
+            Row(
+              children: ['一', '二', '三', '四', '五', '六', '日']
+                  .map((day) => Expanded(child: Center(child: Text(day))))
+                  .toList(),
+            ),
+            const SizedBox(height: 6),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: count,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 7,
+                mainAxisExtent: 42,
+              ),
+              itemBuilder: (context, index) {
+                final dayNumber = index - leading + 1;
+                if (dayNumber < 1 || dayNumber > daysInMonth) {
+                  return const SizedBox();
+                }
+                final date = DateTime(_month.year, _month.month, dayNumber);
+                return _CalendarDay(
+                  date: date,
+                  record: _recordFor(date),
+                  selected: _sameDate(date, _date),
+                  disabled: date.isAfter(_today),
+                  onTap: () => _selectDate(date),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
     );
-    if (value != null) _date.value = value;
+  }
+
+  AttendanceRecord? _recordFor(DateTime date) {
+    for (final record in widget.records) {
+      if (_sameDate(record.date, date)) return record;
+    }
+    return null;
+  }
+
+  void _selectDate(DateTime date) {
+    if (date.isAfter(_today)) return;
+    final record = _recordFor(date);
+    setState(() {
+      _date = date;
+      _error = null;
+      _firstTime = record == null
+          ? null
+          : TimeOfDay.fromDateTime(record.firstCheckIn);
+      _lastTime = record == null
+          ? null
+          : TimeOfDay.fromDateTime(record.lastCheckIn);
+      _noteController.text = record?.note ?? '';
+    });
   }
 
   Future<void> _pickTime({required bool first}) async {
     final value = await showCupertinoTimePicker(
       context: context,
-      initialTime: first ? _firstTime.value : _lastTime.value,
+      initialTime: first
+          ? (_firstTime ?? const TimeOfDay(hour: 9, minute: 0))
+          : (_lastTime ?? const TimeOfDay(hour: 18, minute: 0)),
     );
-    if (value == null) return;
-    if (first) {
-      _firstTime.value = value;
-    } else {
-      _lastTime.value = value;
+    if (value == null || !mounted) return;
+    setState(() {
+      if (first) {
+        _firstTime = value;
+      } else {
+        _lastTime = value;
+      }
+      _error = null;
+    });
+  }
+
+  Future<void> _submit() async {
+    final date = _date;
+    final firstTime = _firstTime;
+    final lastTime = _lastTime;
+    if (date == null || firstTime == null || lastTime == null) {
+      setState(() => _error = '请选择日期、首次时间和末次时间');
+      return;
+    }
+    final first = _combine(date, firstTime);
+    final last = _combine(date, lastTime);
+    if (last.isBefore(first)) {
+      setState(() => _error = '末次时间不能早于首次时间');
+      return;
+    }
+    setState(() => _isSaving = true);
+    try {
+      final existing = _recordFor(date);
+      await widget.store.saveManualRecord(
+        AttendanceRecord(
+          id: existing?.id,
+          date: date,
+          firstCheckIn: first,
+          lastCheckIn: last,
+          note: _noteController.text.trim(),
+          attendanceSource: AttendanceSource.resign,
+        ),
+      );
+      if (!mounted) return;
+      setState(() {
+        _date = null;
+        _firstTime = null;
+        _lastTime = null;
+        _noteController.clear();
+        _error = null;
+        _isSaving = false;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('补签保存成功，表单已清空')));
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isSaving = false;
+        _error = error.toString().contains('UNIQUE constraint failed')
+            ? '该日期已经存在签到记录'
+            : '保存失败：$error';
+      });
     }
   }
 
-  void _submit() {
-    final date = _date.value;
-    final first = _combine(date, _firstTime.value);
-    final last = _combine(date, _lastTime.value);
-    if (last.isBefore(first)) {
-      _error.value = '末次签到时间不能早于首次签到时间';
-      return;
-    }
-    Navigator.pop(
-      context,
-      AttendanceRecord(
-        id: widget.record?.id,
-        date: date,
-        firstCheckIn: first,
-        lastCheckIn: last,
-        note: _noteController.text.trim(),
-        isManual: true,
+  void _previousMonth() =>
+      setState(() => _month = DateTime(_month.year, _month.month - 1));
+
+  void _nextMonth() =>
+      setState(() => _month = DateTime(_month.year, _month.month + 1));
+
+  DateTime _combine(DateTime date, TimeOfDay time) =>
+      DateTime(date.year, date.month, date.day, time.hour, time.minute);
+
+  bool _sameDate(DateTime? first, DateTime? second) =>
+      first != null &&
+      second != null &&
+      first.year == second.year &&
+      first.month == second.month &&
+      first.day == second.day;
+}
+
+class _CalendarDay extends StatelessWidget {
+  const _CalendarDay({
+    required this.date,
+    required this.record,
+    required this.selected,
+    required this.disabled,
+    required this.onTap,
+  });
+
+  final DateTime date;
+  final AttendanceRecord? record;
+  final bool selected;
+  final bool disabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final normal = record == null || _isNormal(record!, context);
+    final statusColor = record == null
+        ? scheme.onSurface
+        : normal
+        ? Colors.green
+        : scheme.error;
+    final background = record == null
+        ? null
+        : statusColor.withValues(alpha: 0.14);
+    return InkWell(
+      onTap: disabled ? null : onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Center(
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: background,
+            shape: BoxShape.circle,
+            border: selected
+                ? Border.all(color: scheme.primary, width: 2)
+                : null,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            '${date.day}',
+            style: TextStyle(
+              color: disabled
+                  ? scheme.onSurface.withValues(alpha: 0.25)
+                  : statusColor,
+              fontWeight: record == null ? null : FontWeight.bold,
+            ),
+          ),
+        ),
       ),
     );
   }
 
-  DateTime _combine(DateTime date, TimeOfDay time) =>
-      DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  bool _isNormal(AttendanceRecord record, BuildContext context) {
+    final store = context
+        .findAncestorWidgetOfExactType<_CorrectionForm>()
+        ?.store;
+    return store == null || store.evaluate(record).isValid;
+  }
 }

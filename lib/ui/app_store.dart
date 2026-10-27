@@ -1,4 +1,6 @@
 import 'package:signals/signals.dart';
+import 'dart:typed_data';
+import 'dart:convert';
 
 import '../domain/models/attendance_evaluation.dart';
 import '../domain/models/attendance_record.dart';
@@ -9,6 +11,8 @@ import '../domain/repositories/attendance_repository.dart';
 import '../domain/repositories/holiday_calendar_repository.dart';
 import '../domain/repositories/settings_repository.dart';
 import '../domain/services/holiday_calendar_service.dart';
+import '../domain/services/attendance_csv_service.dart';
+import '../domain/services/attendance_time_service.dart';
 import '../domain/use_cases/calculate_attendance.dart';
 import '../domain/use_cases/calculate_monthly_summary.dart';
 
@@ -52,6 +56,7 @@ class AppStore {
   final HolidayCalendarService holidayCalendarService;
   final CalculateAttendance calculator;
   final CalculateMonthlySummary monthlyCalculator;
+  static const _attendanceCsv = AttendanceCsvService();
 
   final records = signal<List<AttendanceRecord>>(const []);
   final settings = signal(const AttendanceSettings());
@@ -75,7 +80,7 @@ class AppStore {
   }
 
   AttendanceEvaluation evaluate(AttendanceRecord record) =>
-      calculator(record, settings.value);
+      calculator(record, settings.value, now: DateTime.now());
 
   Future<void> initialize() async {
     batch(() {
@@ -155,10 +160,35 @@ class AppStore {
 
   Future<bool> checkIn({DateTime? at}) async {
     final now = at ?? DateTime.now();
-    final existing = await attendanceRepository.getByDate(now);
+    final nowUtc = now.toUtc();
+    final allRecords = await attendanceRepository.getAll();
+    AttendanceRecord? existing;
+    for (final candidate in allRecords) {
+      final offset = AttendanceTimeService.parseOffsetMinutes(
+        candidate.timezone,
+      );
+      final localNow = AttendanceTimeService.localWallTime(nowUtc, offset);
+      if (_sameDate(localNow, candidate.date)) {
+        existing = candidate;
+        break;
+      }
+    }
     final record = existing == null
-        ? AttendanceRecord(date: now, firstCheckIn: now, lastCheckIn: now)
-        : existing.copyWith(lastCheckIn: now);
+        ? AttendanceRecord(
+            date: now,
+            firstCheckIn: now,
+            lastCheckIn: now,
+            timezone: AttendanceTimeService.formatOffset(now.timeZoneOffset),
+            firstCheckInUtc: nowUtc,
+            lastCheckInUtc: nowUtc,
+          )
+        : existing.copyWith(
+            lastCheckIn: AttendanceTimeService.localWallTime(
+              nowUtc,
+              AttendanceTimeService.parseOffsetMinutes(existing.timezone),
+            ),
+            lastCheckInUtc: nowUtc,
+          );
     await attendanceRepository.save(record);
     await _reloadRecords();
     return existing == null;
@@ -168,7 +198,60 @@ class AppStore {
     if (record.lastCheckIn.isBefore(record.firstCheckIn)) {
       throw ArgumentError('末次签到时间不能早于首次签到时间');
     }
-    await attendanceRepository.save(record.copyWith(isManual: true));
+    final timezone = AttendanceTimeService.formatOffset(
+      DateTime.now().timeZoneOffset,
+    );
+    final offset = AttendanceTimeService.parseOffsetMinutes(timezone);
+    await attendanceRepository.save(
+      record.copyWith(
+        attendanceSource: AttendanceSource.resign,
+        timezone: timezone,
+        firstCheckInUtc: AttendanceTimeService.utcFromLocal(
+          record.firstCheckIn,
+          offset,
+        ),
+        lastCheckInUtc: AttendanceTimeService.utcFromLocal(
+          record.lastCheckIn,
+          offset,
+        ),
+      ),
+    );
+    await _reloadRecords();
+  }
+
+  Uint8List exportAttendanceCsv({DateTime? startDate, DateTime? endDate}) {
+    final filtered = records.value.where((record) {
+      final date = DateTime(
+        record.date.year,
+        record.date.month,
+        record.date.day,
+      );
+      final start = startDate == null
+          ? null
+          : DateTime(startDate.year, startDate.month, startDate.day);
+      final end = endDate == null
+          ? null
+          : DateTime(endDate.year, endDate.month, endDate.day);
+      return (start == null || !date.isBefore(start)) &&
+          (end == null || !date.isAfter(end));
+    }).toList();
+    final statuses = <String, List<AttendanceStatus>>{};
+    for (final record in filtered) {
+      statuses[_dateKey(record.date)] = evaluate(record).statuses;
+    }
+    return Uint8List.fromList(
+      utf8.encode(_attendanceCsv.encode(filtered, statuses: statuses)),
+    );
+  }
+
+  List<AttendanceRecord> parseAttendanceCsv(String csv) =>
+      _attendanceCsv.decode(csv);
+
+  Future<void> saveImportedAttendance(
+    List<AttendanceRecord> imported, {
+    required bool overwrite,
+  }) async {
+    await attendanceRepository.saveAll(imported, overwrite: overwrite);
     await _reloadRecords();
   }
 
@@ -206,4 +289,7 @@ class AppStore {
       first.year == second.year &&
       first.month == second.month &&
       first.day == second.day;
+
+  String _dateKey(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}';
 }

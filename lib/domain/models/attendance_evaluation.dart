@@ -1,3 +1,5 @@
+import 'attendance_record.dart';
+
 enum AttendanceIssue {
   firstOutsideWindow,
   lastOutsideWindow,
@@ -6,16 +8,22 @@ enum AttendanceIssue {
 
 class AttendanceEvaluation {
   const AttendanceEvaluation({
-    required this.validMinutes,
-    required this.excludedMinutes,
+    required this.validDuration,
+    required this.excludedDuration,
     required this.isInProgress,
     required this.issues,
+    required this.statuses,
   });
 
-  final int validMinutes;
-  final int excludedMinutes;
+  final Duration validDuration;
+  final Duration excludedDuration;
   final bool isInProgress;
   final List<AttendanceIssue> issues;
+  final List<AttendanceStatus> statuses;
+
+  int get validMinutes => validDuration.inMinutes;
+
+  int get excludedMinutes => excludedDuration.inMinutes;
 
   bool get isValid => !isInProgress && issues.isEmpty;
 }

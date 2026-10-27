@@ -41,7 +41,10 @@ class CalculateMonthlySummary {
       final record = _recordFor(records, day);
       if (record == null) continue;
       checkedDayCount++;
-      totalValidMinutes += attendanceCalculator(record, settings).validMinutes;
+      totalValidMinutes += attendanceCalculator(
+        record,
+        settings,
+      ).validDuration.inMinutes;
     }
 
     return MonthlyAttendanceSummary(

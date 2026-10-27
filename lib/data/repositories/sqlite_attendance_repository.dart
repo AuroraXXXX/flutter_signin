@@ -1,5 +1,6 @@
 import '../../domain/models/attendance_record.dart';
 import '../../domain/repositories/attendance_repository.dart';
+import '../../domain/services/attendance_time_service.dart';
 import '../services/attendance_database.dart';
 
 class SqliteAttendanceRepository implements AttendanceRepository {
@@ -30,12 +31,23 @@ class SqliteAttendanceRepository implements AttendanceRepository {
   @override
   Future<AttendanceRecord> save(AttendanceRecord record) async {
     final now = DateTime.now().toIso8601String();
+    final offset = AttendanceTimeService.parseOffsetMinutes(record.timezone);
+    final firstUtc =
+        record.firstCheckInUtc ??
+        AttendanceTimeService.utcFromLocal(record.firstCheckIn, offset);
+    final lastUtc =
+        record.lastCheckInUtc ??
+        AttendanceTimeService.utcFromLocal(record.lastCheckIn, offset);
     final values = <String, Object?>{
       'date_key': _dateKey(record.date),
-      'first_check_in': record.firstCheckIn.toIso8601String(),
-      'last_check_in': record.lastCheckIn.toIso8601String(),
+      'first_check_in_time': _time(record.firstCheckIn),
+      'last_check_in_time': _time(record.lastCheckIn),
+      'first_check_in_utc': firstUtc.toIso8601String(),
+      'last_check_in_utc': lastUtc.toIso8601String(),
       'note': record.note,
-      'is_manual': record.isManual ? 1 : 0,
+      'timezone': record.timezone,
+      'timezone_offset_minutes': offset,
+      'attendance_source': record.attendanceSource.name,
       'updated_at': now,
     };
 
@@ -55,6 +67,37 @@ class SqliteAttendanceRepository implements AttendanceRepository {
   }
 
   @override
+  Future<void> saveAll(
+    List<AttendanceRecord> records, {
+    required bool overwrite,
+  }) async {
+    await _database.database.transaction((transaction) async {
+      for (final record in records) {
+        final existing = await transaction.query(
+          'attendance_records',
+          columns: ['id'],
+          where: 'date_key = ?',
+          whereArgs: [_dateKey(record.date)],
+          limit: 1,
+        );
+        if (existing.isNotEmpty) {
+          if (!overwrite) continue;
+          await transaction.update(
+            'attendance_records',
+            _values(record, DateTime.now().toIso8601String()),
+            where: 'date_key = ?',
+            whereArgs: [_dateKey(record.date)],
+          );
+        } else {
+          final now = DateTime.now().toIso8601String();
+          final values = _values(record, now)..['created_at'] = now;
+          await transaction.insert('attendance_records', values);
+        }
+      }
+    });
+  }
+
+  @override
   Future<void> delete(int id) async {
     await _database.database.delete(
       'attendance_records',
@@ -64,19 +107,80 @@ class SqliteAttendanceRepository implements AttendanceRepository {
   }
 
   AttendanceRecord _fromMap(Map<String, Object?> map) {
-    final firstCheckIn = DateTime.parse(map['first_check_in']! as String);
+    final date = _parseDate(map['date_key']! as String);
+    final firstCheckIn = _combine(date, map['first_check_in_time']! as String);
+    final lastCheckIn = _combine(date, map['last_check_in_time']! as String);
     return AttendanceRecord(
       id: map['id']! as int,
-      date: DateTime(firstCheckIn.year, firstCheckIn.month, firstCheckIn.day),
+      date: date,
       firstCheckIn: firstCheckIn,
-      lastCheckIn: DateTime.parse(map['last_check_in']! as String),
+      lastCheckIn: lastCheckIn,
       note: map['note']! as String,
-      isManual: map['is_manual'] == 1,
+      attendanceSource: map['attendance_source'] == 'resign'
+          ? AttendanceSource.resign
+          : AttendanceSource.normal,
+      timezone: map['timezone']! as String,
+      firstCheckInUtc: DateTime.parse(map['first_check_in_utc']! as String),
+      lastCheckInUtc: DateTime.parse(map['last_check_in_utc']! as String),
     );
   }
 
+  Map<String, Object?> _values(AttendanceRecord record, String now) => {
+    'date_key': _dateKey(record.date),
+    'first_check_in_time': _time(record.firstCheckIn),
+    'last_check_in_time': _time(record.lastCheckIn),
+    'first_check_in_utc':
+        (record.firstCheckInUtc ??
+                AttendanceTimeService.utcFromLocal(
+                  record.firstCheckIn,
+                  AttendanceTimeService.parseOffsetMinutes(record.timezone),
+                ))
+            .toIso8601String(),
+    'last_check_in_utc':
+        (record.lastCheckInUtc ??
+                AttendanceTimeService.utcFromLocal(
+                  record.lastCheckIn,
+                  AttendanceTimeService.parseOffsetMinutes(record.timezone),
+                ))
+            .toIso8601String(),
+    'note': record.note,
+    'timezone': record.timezone,
+    'timezone_offset_minutes': AttendanceTimeService.parseOffsetMinutes(
+      record.timezone,
+    ),
+    'attendance_source': record.attendanceSource.name,
+    'updated_at': now,
+  };
+
   String _dateKey(DateTime date) =>
-      '${date.year.toString().padLeft(4, '0')}-'
-      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.year.toString().padLeft(4, '0')}/'
+      '${date.month.toString().padLeft(2, '0')}/'
       '${date.day.toString().padLeft(2, '0')}';
+
+  String _time(DateTime date) => [
+    date.hour.toString().padLeft(2, '0'),
+    date.minute.toString().padLeft(2, '0'),
+    date.second.toString().padLeft(2, '0'),
+  ].join(':');
+
+  DateTime _parseDate(String value) {
+    final parts = value.split(RegExp(r'[-/]'));
+    return DateTime(
+      int.parse(parts[0]),
+      int.parse(parts[1]),
+      int.parse(parts[2]),
+    );
+  }
+
+  DateTime _combine(DateTime date, String value) {
+    final parts = value.split(':');
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      int.parse(parts[0]),
+      int.parse(parts[1]),
+      int.parse(parts[2]),
+    );
+  }
 }

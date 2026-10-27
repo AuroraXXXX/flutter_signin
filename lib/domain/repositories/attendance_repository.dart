@@ -7,5 +7,10 @@ abstract interface class AttendanceRepository {
 
   Future<AttendanceRecord> save(AttendanceRecord record);
 
+  Future<void> saveAll(
+    List<AttendanceRecord> records, {
+    required bool overwrite,
+  });
+
   Future<void> delete(int id);
 }

@@ -1,7 +1,11 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:signals/signals_flutter.dart';
 
 import '../../../domain/models/attendance_settings.dart';
+import '../../../domain/services/attendance_csv_service.dart';
 import '../../app_store.dart';
 import '../../core/cupertino_picker_sheet.dart';
 import '../../core/formatters.dart';
@@ -59,7 +63,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     children: [
                       const Text('达到该时长才算有效'),
                       Text(
-                        formatDuration(_draft.value.minimumMinutes),
+                        formatMinutes(_draft.value.minimumMinutes),
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ],
@@ -72,7 +76,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     min: 60,
                     max: 960,
                     divisions: 30,
-                    label: formatDuration(_draft.value.minimumMinutes),
+                    label: formatMinutes(_draft.value.minimumMinutes),
                     onChanged: (value) => _draft.value = _draft.value.copyWith(
                       minimumMinutes: value.round(),
                     ),
@@ -156,6 +160,30 @@ class _SettingsPageState extends State<SettingsPage> {
               );
             }),
           const SizedBox(height: 20),
+          Text('签到数据', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Card(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.download),
+                  title: const Text('导出全部签到记录'),
+                  subtitle: Text(
+                    '共 ${widget.store.records.value.length} 条记录，CSV 格式',
+                  ),
+                  onTap: _exportAttendanceCsv,
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.upload),
+                  title: const Text('从 CSV 导入签到记录'),
+                  subtitle: const Text('支持覆盖或跳过已有日期'),
+                  onTap: _importAttendanceCsv,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
           Text('国家作息表', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
           Card(
@@ -207,6 +235,188 @@ class _SettingsPageState extends State<SettingsPage> {
     return widget.store.calendarError.value ?? '尚未加载';
   }
 
+  Future<void> _exportAttendanceCsv() async {
+    try {
+      final range = await _selectExportRange();
+      if (range == null || !mounted) return;
+      final now = DateTime.now();
+      final fileRange = range.isAll
+          ? '全部'
+          : '${_compactDate(range.start!)}_${_compactDate(range.end!)}';
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: '导出签到记录',
+        fileName:
+            '签到记录_${fileRange}_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}.csv',
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+        bytes: widget.store.exportAttendanceCsv(
+          startDate: range.start,
+          endDate: range.end,
+        ),
+      );
+      if (!mounted || path == null) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('签到记录导出成功')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('CSV 导出失败：$error')));
+    }
+  }
+
+  Future<_ExportRange?> _selectExportRange() async {
+    final records = widget.store.records.value;
+    DateTime start = DateTime.now();
+    DateTime end = start;
+    if (records.isNotEmpty) {
+      final dates = records.map((record) => record.date).toList()
+        ..sort((a, b) => a.compareTo(b));
+      start = DateTime(dates.first.year, dates.first.month, dates.first.day);
+      end = DateTime(dates.last.year, dates.last.month, dates.last.day);
+    }
+    var isAll = true;
+    final result = await showDialog<_ExportRange>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('选择导出日期范围'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('导出全部记录'),
+                value: isAll,
+                onChanged: (value) => setState(() => isAll = value ?? true),
+              ),
+              if (!isAll) ...[
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('开始日期'),
+                  trailing: Text(formatDate(start)),
+                  onTap: () async {
+                    final value = await showDatePicker(
+                      context: context,
+                      initialDate: start,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2100),
+                    );
+                    if (value != null) setState(() => start = value);
+                  },
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('结束日期'),
+                  trailing: Text(formatDate(end)),
+                  onTap: () async {
+                    final value = await showDatePicker(
+                      context: context,
+                      initialDate: end,
+                      firstDate: DateTime(2000),
+                      lastDate: DateTime(2100),
+                    );
+                    if (value != null) setState(() => end = value);
+                  },
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () {
+                if (!isAll && start.isAfter(end)) return;
+                Navigator.pop(
+                  context,
+                  _ExportRange(
+                    isAll: isAll,
+                    start: isAll ? null : start,
+                    end: isAll ? null : end,
+                  ),
+                );
+              },
+              child: const Text('导出'),
+            ),
+          ],
+        ),
+      ),
+    );
+    return result;
+  }
+
+  String _compactDate(DateTime date) =>
+      '${date.year}${date.month.toString().padLeft(2, '0')}${date.day.toString().padLeft(2, '0')}';
+
+  Future<void> _importAttendanceCsv() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+        withData: true,
+      );
+      if (result == null || result.files.single.bytes == null || !mounted) {
+        return;
+      }
+      final csv = utf8.decode(
+        result.files.single.bytes!,
+        allowMalformed: false,
+      );
+      final imported = widget.store.parseAttendanceCsv(csv);
+      if (imported.isEmpty) {
+        throw const AttendanceCsvException('CSV 中没有签到记录');
+      }
+      final existing = imported.where((record) {
+        return widget.store.recordFor(record.date) != null;
+      }).length;
+      final action = await _askImportAction(imported.length, existing);
+      if (action == null || action == _ImportAction.cancel || !mounted) {
+        return;
+      }
+      final overwrite = action == _ImportAction.overwrite;
+      await widget.store.saveImportedAttendance(imported, overwrite: overwrite);
+      if (!mounted) return;
+      final count = overwrite ? imported.length : imported.length - existing;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('CSV 导入成功：新增或更新 $count 条记录')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('CSV 导入失败：$error')));
+    }
+  }
+
+  Future<_ImportAction?> _askImportAction(int total, int existing) {
+    if (existing == 0) return Future.value(_ImportAction.overwrite);
+    return showDialog<_ImportAction>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('发现重复日期'),
+        content: Text('CSV 共 $total 条记录，其中 $existing 条已存在。请选择处理方式。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, _ImportAction.cancel),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, _ImportAction.skip),
+            child: const Text('跳过已有'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, _ImportAction.overwrite),
+            child: const Text('覆盖已有'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _importJson() async {
     final controller = TextEditingController();
     final json = await showDialog<String>(
@@ -241,12 +451,14 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       final calendar = await widget.store.importHolidayCalendarJson(json);
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('${calendar.year} 年作息表导入成功')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('${calendar.year} 年作息表导入成功')));
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('JSON 导入失败：$error')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('JSON 导入失败：$error')));
     }
   }
 
@@ -308,17 +520,29 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       await widget.store.saveSettings(_draft.value);
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('设置已保存，历史状态已按新规则更新')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('设置已保存，历史状态已按新规则更新')));
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('设置保存失败：$error')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('设置保存失败：$error')));
     } finally {
       if (mounted) _isSaving.value = false;
     }
   }
 }
+
+class _ExportRange {
+  const _ExportRange({required this.isAll, this.start, this.end});
+
+  final bool isAll;
+  final DateTime? start;
+  final DateTime? end;
+}
+
+enum _ImportAction { overwrite, skip, cancel }
 
 class TimeRangeDialog extends SignalStatefulWidget {
   const TimeRangeDialog({
