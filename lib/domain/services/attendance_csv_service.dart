@@ -1,6 +1,7 @@
 import '../models/attendance_record.dart';
 import 'attendance_time_service.dart';
 
+/// CSV 内容不符合签到数据格式时抛出的异常。
 class AttendanceCsvException implements Exception {
   const AttendanceCsvException(this.message);
 
@@ -10,6 +11,7 @@ class AttendanceCsvException implements Exception {
   String toString() => message;
 }
 
+/// 签到记录 CSV 的编码和解码器。
 class AttendanceCsvService {
   const AttendanceCsvService();
 
@@ -27,6 +29,7 @@ class AttendanceCsvService {
     Iterable<AttendanceRecord> records, {
     Map<String, List<AttendanceStatus>> statuses = const {},
   }) {
+    // BOM 让 Windows/Excel 按 UTF-8 识别中文，而不是显示乱码。
     final lines = <String>[_encodeRow(headers)];
     for (final record in records) {
       final key = _dateKey(record.date);
@@ -48,6 +51,7 @@ class AttendanceCsvService {
   }
 
   List<AttendanceRecord> decode(String input) {
+    // 导入时严格校验表头、字段数、日期唯一性和时间关系，尽早发现错误。
     final rows = _parse(input.replaceFirst('\uFEFF', ''));
     if (rows.isEmpty ||
         rows.first.length != headers.length ||

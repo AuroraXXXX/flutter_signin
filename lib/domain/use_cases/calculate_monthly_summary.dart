@@ -4,6 +4,7 @@ import '../models/holiday_calendar.dart';
 import '../models/monthly_attendance_summary.dart';
 import 'calculate_attendance.dart';
 
+/// 根据年度作息表汇总某月的工作日和有效工时。
 class CalculateMonthlySummary {
   const CalculateMonthlySummary({
     this.attendanceCalculator = const CalculateAttendance(),
@@ -22,6 +23,7 @@ class CalculateMonthlySummary {
     final lastDay = DateTime(month.year, month.month + 1, 0);
     final currentDay = DateTime(now.year, now.month, now.day);
     final isCurrentMonth = month.year == now.year && month.month == now.month;
+    // 当前月只统计到今天，历史月份则统计整月。
     final endDay = isCurrentMonth && currentDay.isBefore(lastDay)
         ? currentDay
         : lastDay;
@@ -58,6 +60,7 @@ class CalculateMonthlySummary {
     );
   }
 
+  // 作息表中的调休工作日优先级高于星期几；未标记日期按周一至周五处理。
   bool _isWorkday(DateTime date, HolidayCalendarYear calendar) {
     final entry = calendar.entryFor(date);
     if (entry != null) {

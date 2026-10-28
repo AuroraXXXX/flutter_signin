@@ -20,6 +20,7 @@ class BootstrapApp extends SignalStatefulWidget {
 }
 
 class _BootstrapAppState extends State<BootstrapApp> {
+  // 依赖异步初始化完成前为 null，界面此时显示加载状态。
   final _dependencies = signal<_AppDependencies?>(null);
   final _error = signal<String?>(null);
   final _isLoading = signal(true);
@@ -105,6 +106,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
       _error.value = null;
     });
     try {
+      // 数据库只在启动阶段打开一次，Repository 共享同一个连接。
       final database = await AttendanceDatabase.open();
       _dependencies.value = _AppDependencies(
         attendanceRepository: SqliteAttendanceRepository(database),

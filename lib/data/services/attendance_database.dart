@@ -4,6 +4,7 @@ import 'package:sqflite/sqflite.dart';
 import '../../domain/services/attendance_time_service.dart';
 import 'database_factory.dart';
 
+/// SQLite 数据库入口，负责打开数据库、建表和版本迁移。
 class AttendanceDatabase {
   AttendanceDatabase._(this.database);
 
@@ -18,6 +19,7 @@ class AttendanceDatabase {
       options: OpenDatabaseOptions(
         version: 4,
         onCreate: (db, version) async {
+          // 新数据库一次性创建当前版本所需的全部表。
           await db.execute('''
             CREATE TABLE attendance_records (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,6 +57,7 @@ class AttendanceDatabase {
           await _createHolidayTables(db);
         },
         onUpgrade: (db, oldVersion, newVersion) async {
+          // 升级按版本顺序执行，保证旧用户的数据逐步迁移到当前结构。
           if (oldVersion < 2) {
             await _createHolidayTables(db);
           }
@@ -71,6 +74,7 @@ class AttendanceDatabase {
   }
 
   static Future<void> _migrateAttendanceRecords(DatabaseExecutor db) async {
+    // v3 将旧的 DateTime 字段拆成日期、时间和来源等更明确的列。
     await db.execute(
       'ALTER TABLE attendance_records RENAME TO attendance_records_legacy',
     );
@@ -107,6 +111,7 @@ class AttendanceDatabase {
   }
 
   static Future<void> _addUtcTimeColumns(DatabaseExecutor db) async {
+    // v4 增加 UTC 字段，兼容已有本地时间记录并补算其 UTC 值。
     await db.execute(
       'ALTER TABLE attendance_records ADD COLUMN first_check_in_utc TEXT',
     );

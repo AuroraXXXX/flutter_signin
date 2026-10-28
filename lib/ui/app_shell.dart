@@ -17,6 +17,7 @@ class AppShell extends SignalStatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
+  // 底部导航当前选中的页面索引。
   final _selectedIndex = signal(0);
 
   @override
@@ -51,6 +52,7 @@ class _AppShellState extends State<AppShell> {
       );
     }
 
+    // IndexedStack 不会销毁未选中的页面，因此可以保留页面滚动位置和表单状态。
     final pages = [
       CheckInPage(store: widget.store),
       HistoryPage(store: widget.store),

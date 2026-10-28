@@ -16,6 +16,7 @@ import '../domain/services/attendance_time_service.dart';
 import '../domain/use_cases/calculate_attendance.dart';
 import '../domain/use_cases/calculate_monthly_summary.dart';
 
+/// 应用级状态容器，连接 UI、领域规则和持久化层。
 class AppStore {
   AppStore({
     required this.attendanceRepository,
@@ -58,10 +59,12 @@ class AppStore {
   final CalculateMonthlySummary monthlyCalculator;
   static const _attendanceCsv = AttendanceCsvService();
 
+  // 对外暴露不可变列表，避免页面直接修改共享状态。
   final records = signal<List<AttendanceRecord>>(const []);
   final settings = signal(const AttendanceSettings());
   final isLoading = signal(true);
   final loadError = signal<String?>(null);
+  // 月份统一归一化为该月第一天，便于比较和加载年度作息表。
   final selectedHistoryMonth = signal(
     DateTime(DateTime.now().year, DateTime.now().month),
   );
@@ -88,6 +91,7 @@ class AppStore {
       loadError.value = null;
     });
     try {
+      // 设置和记录都加载成功后才一次性更新 UI，减少中间状态闪烁。
       final loadedSettings = await settingsRepository.get();
       final loadedRecords = await attendanceRepository.getAll();
       batch(() {
@@ -124,6 +128,7 @@ class AppStore {
     });
     try {
       HolidayCalendarYear? calendar;
+      // 默认优先使用本地缓存；用户明确同步时才跳过缓存。
       if (!forceSync) {
         calendar = await holidayCalendarRepository.getYear(year);
       }
@@ -161,6 +166,7 @@ class AppStore {
   Future<bool> checkIn({DateTime? at}) async {
     final now = at ?? DateTime.now();
     final nowUtc = now.toUtc();
+    // 不能简单按设备当前日期查找，因为旧记录可能保存了不同的时区。
     final allRecords = await attendanceRepository.getAll();
     AttendanceRecord? existing;
     for (final candidate in allRecords) {
@@ -173,6 +179,7 @@ class AppStore {
         break;
       }
     }
+    // 第一次点击创建记录，之后的点击只更新末次签到时间。
     final record = existing == null
         ? AttendanceRecord(
             date: now,
@@ -198,6 +205,7 @@ class AppStore {
     if (record.lastCheckIn.isBefore(record.firstCheckIn)) {
       throw ArgumentError('末次签到时间不能早于首次签到时间');
     }
+    // 补签时间来自用户选择的本地墙上时间，因此保存时重新生成 UTC 值。
     final timezone = AttendanceTimeService.formatOffset(
       DateTime.now().timeZoneOffset,
     );

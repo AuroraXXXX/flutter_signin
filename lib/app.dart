@@ -27,6 +27,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
+  // AppStore 统一管理页面之间共享的签到、设置和作息表状态。
   late final AppStore _store;
 
   @override
@@ -59,6 +60,7 @@ class _MyAppState extends State<MyApp> {
         GlobalCupertinoLocalizations.delegate,
       ],
       builder: (context, child) => MediaQuery(
+        // 考勤时间统一按 24 小时制展示，避免受到系统设置影响。
         data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
         child: child!,
       ),

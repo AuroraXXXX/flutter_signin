@@ -1,3 +1,4 @@
+/// 不计入有效工时的每日时间段，例如午休。
 class ExcludedTimeRange {
   const ExcludedTimeRange({
     this.id,
@@ -6,10 +7,12 @@ class ExcludedTimeRange {
   });
 
   final int? id;
+  // 时间以当天 00:00 起经过的分钟数表示，例如 08:00 是 480。
   final int startMinute;
   final int endMinute;
 }
 
+/// 考勤计算所需的全部规则。
 class AttendanceSettings {
   const AttendanceSettings({
     this.minimumMinutes = 480,

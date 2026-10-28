@@ -1,3 +1,4 @@
+/// 月度考勤统计结果。
 class MonthlyAttendanceSummary {
   const MonthlyAttendanceSummary({
     required this.workdayCount,

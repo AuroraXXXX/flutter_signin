@@ -3,6 +3,7 @@ import '../../domain/repositories/attendance_repository.dart';
 import '../../domain/services/attendance_time_service.dart';
 import '../services/attendance_database.dart';
 
+/// 使用 SQLite 保存签到记录的 Repository 实现。
 class SqliteAttendanceRepository implements AttendanceRepository {
   const SqliteAttendanceRepository(this._database);
 
@@ -38,6 +39,7 @@ class SqliteAttendanceRepository implements AttendanceRepository {
     final lastUtc =
         record.lastCheckInUtc ??
         AttendanceTimeService.utcFromLocal(record.lastCheckIn, offset);
+    // 数据库同时保存本地显示时间和 UTC 时间：前者用于展示，后者用于计算时长。
     final values = <String, Object?>{
       'date_key': _dateKey(record.date),
       'first_check_in_time': _time(record.firstCheckIn),
@@ -71,6 +73,7 @@ class SqliteAttendanceRepository implements AttendanceRepository {
     List<AttendanceRecord> records, {
     required bool overwrite,
   }) async {
+    // 批量导入放在事务中，确保整批数据不会只保存一部分。
     await _database.database.transaction((transaction) async {
       for (final record in records) {
         final existing = await transaction.query(
@@ -81,6 +84,7 @@ class SqliteAttendanceRepository implements AttendanceRepository {
           limit: 1,
         );
         if (existing.isNotEmpty) {
+          // overwrite=false 用于“跳过已有”，避免导入覆盖用户现有记录。
           if (!overwrite) continue;
           await transaction.update(
             'attendance_records',

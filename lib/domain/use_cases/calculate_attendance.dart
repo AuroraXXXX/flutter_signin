@@ -2,6 +2,7 @@ import '../models/attendance_evaluation.dart';
 import '../models/attendance_record.dart';
 import '../models/attendance_settings.dart';
 
+/// 按签到设置评估一条记录，纯计算，不读写数据库。
 class CalculateAttendance {
   const CalculateAttendance();
 
@@ -10,6 +11,7 @@ class CalculateAttendance {
     AttendanceSettings settings, {
     DateTime? now,
   }) {
+    // 窗口判断使用本地墙上时间；时长计算则优先使用 UTC 时间。
     final firstMinute = _minuteOfDay(record.firstCheckIn);
     final lastMinute = _minuteOfDay(record.lastCheckIn);
     final isInProgress = record.firstCheckIn.isAtSameMomentAs(
@@ -18,8 +20,7 @@ class CalculateAttendance {
     final issues = <AttendanceIssue>[];
     final statuses = <AttendanceStatus>[];
 
-    // A first check-in is only a starting point. Do not evaluate the
-    // windows or minimum duration until the user checks out for the day.
+    // 只有首次签到时，记录只是“进行中”，暂不判断末次时间和最低工时。
     if (isInProgress) {
       if (!_inside(
         firstMinute,
@@ -68,6 +69,7 @@ class CalculateAttendance {
       }
     }
 
+    // 真实时长使用 UTC 差值，避免两个本地时间来自不同时区时计算错误。
     final totalDuration = (record.lastCheckInUtc ?? record.lastCheckIn)
         .difference(record.firstCheckInUtc ?? record.firstCheckIn);
     final excludedDuration = _excludedDuration(
@@ -107,6 +109,7 @@ class CalculateAttendance {
     final lastSecond = _secondOfDay(last);
     if (lastSecond <= firstSecond) return Duration.zero;
 
+    // 先求每个排除区间与签到区间的交集，再合并重叠区间，避免重复扣除。
     final intersections =
         ranges
             .map(

@@ -6,6 +6,7 @@ Future<TimeOfDay?> showCupertinoTimePicker({
   required BuildContext context,
   required TimeOfDay initialTime,
 }) async {
+  // CupertinoDatePicker 使用 DateTime，因此把 TimeOfDay 暂时挂到今天的日期上。
   final now = DateTime.now();
   final initial = DateTime(
     now.year,
@@ -55,6 +56,7 @@ Future<DateTime?> _showPickerSheet({
   DateTime? minimumDate,
   DateTime? maximumDate,
 }) {
+  // 统一封装底部弹层、取消/确定按钮和鼠标滚轮支持。
   var selected = initial;
   return showModalBottomSheet<DateTime>(
     context: context,

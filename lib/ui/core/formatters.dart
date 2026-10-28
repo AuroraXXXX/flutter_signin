@@ -1,6 +1,7 @@
 import '../../domain/models/attendance_evaluation.dart';
 import '../../domain/models/attendance_record.dart';
 
+/// UI 使用的日期、时间和考勤状态中文格式化函数。
 String formatDate(DateTime value) =>
     '${value.year}年${value.month.toString().padLeft(2, '0')}月'
     '${value.day.toString().padLeft(2, '0')}日';

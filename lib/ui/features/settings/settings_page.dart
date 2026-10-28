@@ -10,6 +10,7 @@ import '../../app_store.dart';
 import '../../core/cupertino_picker_sheet.dart';
 import '../../core/formatters.dart';
 
+/// 考勤规则、数据导入导出和年度作息表管理页。
 class SettingsPage extends SignalStatefulWidget {
   const SettingsPage({super.key, required this.store});
 
@@ -20,6 +21,7 @@ class SettingsPage extends SignalStatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  // 先编辑草稿，点击“保存”后才写入数据库和 AppStore。
   late final Signal<AttendanceSettings> _draft;
   final _isSaving = signal(false);
 
@@ -370,6 +372,7 @@ class _SettingsPageState extends State<SettingsPage> {
       if (imported.isEmpty) {
         throw const AttendanceCsvException('CSV 中没有签到记录');
       }
+      // 先统计重复日期，再让用户选择覆盖或跳过，避免无提示地覆盖数据。
       final existing = imported.where((record) {
         return widget.store.recordFor(record.date) != null;
       }).length;
@@ -506,6 +509,7 @@ class _SettingsPageState extends State<SettingsPage> {
     } else {
       ranges[index] = value;
     }
+    // 保持列表有序，数据库中的 sort_order 和设置页显示顺序一致。
     ranges.sort((a, b) => a.startMinute.compareTo(b.startMinute));
     _draft.value = _draft.value.copyWith(excludedRanges: ranges);
   }

@@ -4,6 +4,7 @@ import '../../domain/models/attendance_settings.dart';
 import '../../domain/repositories/settings_repository.dart';
 import '../services/attendance_database.dart';
 
+/// 使用 SQLite 保存考勤规则和排除时段。
 class SqliteSettingsRepository implements SettingsRepository {
   const SqliteSettingsRepository(this._database);
 
@@ -17,6 +18,7 @@ class SqliteSettingsRepository implements SettingsRepository {
       limit: 1,
     );
     if (settingsRows.isEmpty) {
+      // 第一次启动时写入默认规则，后续读取即可得到完整配置。
       const defaults = AttendanceSettings();
       await save(defaults);
       return defaults;
@@ -47,6 +49,7 @@ class SqliteSettingsRepository implements SettingsRepository {
 
   @override
   Future<void> save(AttendanceSettings settings) async {
+    // 设置主表和排除时段必须一起更新，避免两者不一致。
     await _database.database.transaction((transaction) async {
       await transaction.insert('attendance_settings', {
         'id': 1,

@@ -1,9 +1,12 @@
 import '../services/attendance_time_service.dart';
 
+/// 签到记录的来源：实时签到或人工补签。
 enum AttendanceSource { normal, resign }
 
+/// 根据签到时间计算出的考勤类别。
 enum AttendanceStatus { normal, late, earlyLeave, missingCard }
 
+/// 一天的签到记录。
 class AttendanceRecord {
   AttendanceRecord({
     this.id,
@@ -26,6 +29,7 @@ class AttendanceRecord {
   final String note;
   final AttendanceSource attendanceSource;
   final String timezone;
+  // 保留 UTC 时间用于计算真实时长，避免跨时区或夏令时造成误差。
   final DateTime? firstCheckInUtc;
   final DateTime? lastCheckInUtc;
 

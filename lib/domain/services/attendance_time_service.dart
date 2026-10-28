@@ -1,3 +1,4 @@
+/// 处理本地墙上时间、UTC 时间和固定时区偏移之间的转换。
 class AttendanceTimeService {
   const AttendanceTimeService._();
 
@@ -20,6 +21,7 @@ class AttendanceTimeService {
       formatOffset(Duration(minutes: minutes));
 
   static DateTime localWallTime(DateTime utc, int offsetMinutes) {
+    // 先把 UTC 加上固定偏移，再构造没有时区标记的本地墙上时间。
     final shifted = utc.toUtc().add(Duration(minutes: offsetMinutes));
     return DateTime(
       shifted.year,

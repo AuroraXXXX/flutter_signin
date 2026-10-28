@@ -4,6 +4,7 @@ import '../../domain/models/holiday_calendar.dart';
 import '../../domain/repositories/holiday_calendar_repository.dart';
 import '../services/attendance_database.dart';
 
+/// 使用 SQLite 缓存年度节假日和调休数据。
 class SqliteHolidayCalendarRepository implements HolidayCalendarRepository {
   const SqliteHolidayCalendarRepository(this._database);
 
@@ -45,6 +46,7 @@ class SqliteHolidayCalendarRepository implements HolidayCalendarRepository {
 
   @override
   Future<void> saveYear(HolidayCalendarYear calendar) async {
+    // 替换整年度数据，避免旧年度条目残留。
     await _database.database.transaction((transaction) async {
       await transaction.delete(
         'holiday_calendar',

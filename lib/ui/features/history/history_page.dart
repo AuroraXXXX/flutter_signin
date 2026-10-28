@@ -7,6 +7,7 @@ import '../../app_store.dart';
 import '../../core/cupertino_picker_sheet.dart';
 import '../../core/formatters.dart';
 
+/// 历史记录页，包含月份统计和单日记录详情。
 class HistoryPage extends SignalWidget {
   const HistoryPage({super.key, required this.store});
 
@@ -16,6 +17,7 @@ class HistoryPage extends SignalWidget {
   Widget build(BuildContext context) {
     final records = store.monthlyRecords.value;
     final month = store.selectedHistoryMonth.value;
+    // 月度统计依赖所选年份的作息表，作息表未加载时 summary 可能为 null。
     final summary = store.monthlySummary.value;
     return Scaffold(
       appBar: AppBar(title: const Text('签到历史')),

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../../domain/models/holiday_calendar.dart';
 import '../../domain/services/holiday_calendar_service.dart';
 
+/// 从远程 holiday-calendar 数据源获取并校验中国年度作息表。
 class RemoteHolidayCalendarService implements HolidayCalendarService {
   RemoteHolidayCalendarService({http.Client? client})
     : _client = client ?? http.Client();
@@ -19,6 +20,7 @@ class RemoteHolidayCalendarService implements HolidayCalendarService {
   @override
   Future<HolidayCalendarYear> fetchYear(int year) async {
     Object? lastError;
+    // 第一个地址失败时尝试备用 CDN，提高同步成功率。
     for (final baseUrl in _sources) {
       final uri = Uri.parse('$baseUrl/$year.json');
       try {
@@ -39,6 +41,7 @@ class RemoteHolidayCalendarService implements HolidayCalendarService {
 
   @override
   HolidayCalendarYear parseJson(String json, {required String source}) {
+    // 解析后进行结构、地区、日期范围和重复日期校验，避免脏数据进入数据库。
     final decoded = jsonDecode(json);
     if (decoded is! Map<String, dynamic>) {
       throw const FormatException('JSON 顶层必须是对象');

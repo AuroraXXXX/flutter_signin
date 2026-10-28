@@ -6,6 +6,7 @@ import '../../app_store.dart';
 import '../../core/cupertino_picker_sheet.dart';
 import '../../core/formatters.dart';
 
+/// 补签页，允许选择过去日期并编辑该日期的首次/末次签到时间。
 class CorrectionPage extends SignalWidget {
   const CorrectionPage({super.key, required this.store});
 
@@ -139,6 +140,7 @@ class _CorrectionFormState extends State<_CorrectionForm> {
   }
 
   Widget _buildCalendar(BuildContext context) {
+    // 日历以周一为每行第一天，leading 表示当月第一天前需要补出的空格数。
     final firstDay = DateTime(_month.year, _month.month, 1);
     final daysInMonth = DateTime(_month.year, _month.month + 1, 0).day;
     final leading = firstDay.weekday - DateTime.monday;
@@ -264,6 +266,7 @@ class _CorrectionFormState extends State<_CorrectionForm> {
     }
     setState(() => _isSaving = true);
     try {
+      // 如果该日期已有记录，沿用 id 让 Repository 执行更新而不是插入重复记录。
       final existing = _recordFor(date);
       await widget.store.saveManualRecord(
         AttendanceRecord(

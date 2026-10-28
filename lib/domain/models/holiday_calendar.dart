@@ -1,3 +1,4 @@
+/// 作息表中特殊日期的类型。
 enum HolidayDateType {
   publicHoliday('public_holiday'),
   transferWorkday('transfer_workday');
@@ -13,6 +14,7 @@ enum HolidayDateType {
   };
 }
 
+/// 作息表中的一个特殊日期。
 class HolidayDate {
   const HolidayDate({
     required this.date,
@@ -25,6 +27,7 @@ class HolidayDate {
   final HolidayDateType type;
 }
 
+/// 某个地区某一年的节假日和调休工作日数据。
 class HolidayCalendarYear {
   const HolidayCalendarYear({
     required this.year,

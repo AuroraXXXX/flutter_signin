@@ -6,6 +6,7 @@ import 'package:signals/signals_flutter.dart';
 import '../../app_store.dart';
 import '../../core/formatters.dart';
 
+/// 今日签到页：展示当前记录、考勤评估结果并执行签到操作。
 class CheckInPage extends SignalWidget {
   const CheckInPage({super.key, required this.store});
 
@@ -129,6 +130,7 @@ class _CurrentTimeCardState extends State<_CurrentTimeCard> {
   @override
   void initState() {
     super.initState();
+    // 当前时间卡片独立刷新，避免每秒重建整个签到页面。
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) _now.value = DateTime.now();
     });

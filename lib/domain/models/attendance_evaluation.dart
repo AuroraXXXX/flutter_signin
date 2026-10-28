@@ -6,6 +6,7 @@ enum AttendanceIssue {
   insufficientDuration,
 }
 
+/// 对单条签到记录应用考勤规则后的结果。
 class AttendanceEvaluation {
   const AttendanceEvaluation({
     required this.validDuration,
@@ -17,6 +18,7 @@ class AttendanceEvaluation {
 
   final Duration validDuration;
   final Duration excludedDuration;
+  // 只有一次签到时，记录仍处于进行中，不应立即判定工时不足。
   final bool isInProgress;
   final List<AttendanceIssue> issues;
   final List<AttendanceStatus> statuses;
