@@ -11,6 +11,7 @@ import 'domain/repositories/attendance_repository.dart';
 import 'domain/repositories/holiday_calendar_repository.dart';
 import 'domain/repositories/settings_repository.dart';
 import 'domain/services/holiday_calendar_service.dart';
+import 'ui/core/app_logo.dart';
 
 class BootstrapApp extends SignalStatefulWidget {
   const BootstrapApp({super.key});
@@ -66,6 +67,8 @@ class _BootstrapAppState extends State<BootstrapApp> {
                 ? const Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      AppLogo(),
+                      SizedBox(height: 24),
                       CircularProgressIndicator(),
                       SizedBox(height: 16),
                       Text('正在初始化本地数据库…'),
@@ -74,6 +77,8 @@ class _BootstrapAppState extends State<BootstrapApp> {
                 : Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      const AppLogo(),
+                      const SizedBox(height: 24),
                       Icon(
                         Icons.error_outline,
                         size: 48,

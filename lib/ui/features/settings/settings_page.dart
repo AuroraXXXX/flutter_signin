@@ -7,6 +7,7 @@ import 'package:signals/signals_flutter.dart';
 import '../../../domain/models/attendance_settings.dart';
 import '../../../domain/services/attendance_csv_service.dart';
 import '../../app_store.dart';
+import '../../core/app_logo.dart';
 import '../../core/cupertino_picker_sheet.dart';
 import '../../core/formatters.dart';
 
@@ -53,6 +54,8 @@ class _SettingsPageState extends State<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
+          const _AboutAppCard(),
+          const SizedBox(height: 20),
           Text('最低有效工时', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
           Card(
@@ -547,6 +550,40 @@ class _ExportRange {
 }
 
 enum _ImportAction { overwrite, skip, cancel }
+
+/// 设置页顶部的应用信息卡片，展示与应用启动图标一致的品牌图标。
+class _AboutAppCard extends StatelessWidget {
+  const _AboutAppCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            const AppLogo(size: 64, borderRadius: 16),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('签到系统', style: theme.textTheme.titleMedium),
+                  const SizedBox(height: 4),
+                  Text(
+                    '记录每日签到与有效工时',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class TimeRangeDialog extends SignalStatefulWidget {
   const TimeRangeDialog({

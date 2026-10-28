@@ -66,6 +66,11 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # 应用内展示的品牌图标，与各平台启动图标来自同一张主图
+  # （assets/branding/app_icon.png，由 tool/generate_app_icons.py 生成）。
+  assets:
+    - assets/branding/app_logo.png
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
