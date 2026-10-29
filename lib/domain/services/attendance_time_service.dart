@@ -17,9 +17,6 @@ class AttendanceTimeService {
     return match.group(1) == '-' ? -minutes : minutes;
   }
 
-  static String formatOffsetMinutes(int minutes) =>
-      formatOffset(Duration(minutes: minutes));
-
   static DateTime localWallTime(DateTime utc, int offsetMinutes) {
     // 先把 UTC 加上固定偏移，再构造没有时区标记的本地墙上时间。
     final shifted = utc.toUtc().add(Duration(minutes: offsetMinutes));

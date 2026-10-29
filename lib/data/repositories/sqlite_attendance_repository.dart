@@ -19,17 +19,6 @@ class SqliteAttendanceRepository implements AttendanceRepository {
   }
 
   @override
-  Future<AttendanceRecord?> getByDate(DateTime date) async {
-    final rows = await _database.database.query(
-      'attendance_records',
-      where: 'date_key = ?',
-      whereArgs: [_dateKey(date)],
-      limit: 1,
-    );
-    return rows.isEmpty ? null : _fromMap(rows.first);
-  }
-
-  @override
   Future<AttendanceRecord> save(AttendanceRecord record) async {
     final now = DateTime.now().toIso8601String();
     final offset = AttendanceTimeService.parseOffsetMinutes(record.timezone);
