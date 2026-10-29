@@ -35,6 +35,7 @@ class SqliteSettingsRepository implements SettingsRepository {
       firstWindowEnd: row['first_window_end']! as int,
       lastWindowStart: row['last_window_start']! as int,
       lastWindowEnd: row['last_window_end']! as int,
+      textSize: _textSizeFromValue(row['text_size'] as String?),
       excludedRanges: rangeRows
           .map(
             (range) => ExcludedTimeRange(
@@ -58,6 +59,7 @@ class SqliteSettingsRepository implements SettingsRepository {
         'first_window_end': settings.firstWindowEnd,
         'last_window_start': settings.lastWindowStart,
         'last_window_end': settings.lastWindowEnd,
+        'text_size': settings.textSize.name,
       }, conflictAlgorithm: ConflictAlgorithm.replace);
       await transaction.delete('excluded_time_ranges');
       for (var index = 0; index < settings.excludedRanges.length; index++) {
@@ -69,5 +71,12 @@ class SqliteSettingsRepository implements SettingsRepository {
         });
       }
     });
+  }
+
+  TextSizePreset _textSizeFromValue(String? value) {
+    return TextSizePreset.values.firstWhere(
+      (preset) => preset.name == value,
+      orElse: () => TextSizePreset.standard,
+    );
   }
 }

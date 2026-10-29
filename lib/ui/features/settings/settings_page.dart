@@ -57,6 +57,30 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           const _AboutAppCard(),
           const SizedBox(height: 20),
+          Text('文字显示', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: SegmentedButton<TextSizePreset>(
+                segments: TextSizePreset.values
+                    .map(
+                      (preset) => ButtonSegment<TextSizePreset>(
+                        value: preset,
+                        label: Text(preset.label),
+                      ),
+                    )
+                    .toList(),
+                selected: {_draft.value.textSize},
+                onSelectionChanged: (selected) {
+                  _draft.value = _draft.value.copyWith(
+                    textSize: selected.first,
+                  );
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
           Text('最低有效工时', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
           Card(

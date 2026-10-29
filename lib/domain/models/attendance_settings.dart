@@ -12,6 +12,28 @@ class ExcludedTimeRange {
   final int endMinute;
 }
 
+/// 全应用文字大小预设。使用有限档位，避免设置过于复杂。
+enum TextSizePreset {
+  small,
+  standard,
+  large,
+  extraLarge;
+
+  String get label => switch (this) {
+    TextSizePreset.small => '小',
+    TextSizePreset.standard => '标准',
+    TextSizePreset.large => '大',
+    TextSizePreset.extraLarge => '特大',
+  };
+
+  double get scale => switch (this) {
+    TextSizePreset.small => 0.9,
+    TextSizePreset.standard => 1.0,
+    TextSizePreset.large => 1.15,
+    TextSizePreset.extraLarge => 1.3,
+  };
+}
+
 /// 考勤计算所需的全部规则。
 class AttendanceSettings {
   const AttendanceSettings({
@@ -20,6 +42,7 @@ class AttendanceSettings {
     this.firstWindowEnd = 570,
     this.lastWindowStart = 1020,
     this.lastWindowEnd = 1200,
+    this.textSize = TextSizePreset.standard,
     this.excludedRanges = const [
       ExcludedTimeRange(startMinute: 720, endMinute: 780),
     ],
@@ -30,6 +53,7 @@ class AttendanceSettings {
   final int firstWindowEnd;
   final int lastWindowStart;
   final int lastWindowEnd;
+  final TextSizePreset textSize;
   final List<ExcludedTimeRange> excludedRanges;
 
   AttendanceSettings copyWith({
@@ -39,6 +63,7 @@ class AttendanceSettings {
     int? lastWindowStart,
     int? lastWindowEnd,
     List<ExcludedTimeRange>? excludedRanges,
+    TextSizePreset? textSize,
   }) {
     return AttendanceSettings(
       minimumMinutes: minimumMinutes ?? this.minimumMinutes,
@@ -47,6 +72,7 @@ class AttendanceSettings {
       lastWindowStart: lastWindowStart ?? this.lastWindowStart,
       lastWindowEnd: lastWindowEnd ?? this.lastWindowEnd,
       excludedRanges: excludedRanges ?? this.excludedRanges,
+      textSize: textSize ?? this.textSize,
     );
   }
 }

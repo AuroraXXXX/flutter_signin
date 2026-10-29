@@ -213,8 +213,14 @@ class _MonthlySummaryCard extends StatelessWidget {
                     child: OutlinedButton.icon(
                       onPressed: onSelectMonth,
                       icon: const Icon(Icons.calendar_month),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 56),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                      ),
                       label: Text(
                         '${month.year}年${month.month.toString().padLeft(2, '0')}月',
+                        style: Theme.of(context).textTheme.headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),

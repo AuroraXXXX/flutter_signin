@@ -16,7 +16,7 @@ class AttendanceDatabase {
     final database = await factory.openDatabase(
       databasePath,
       options: OpenDatabaseOptions(
-        version: 4,
+        version: 5,
         onCreate: (db, version) async {
           // 新数据库一次性创建当前版本所需的全部表。
           await db.execute('''
@@ -42,7 +42,8 @@ class AttendanceDatabase {
               first_window_start INTEGER NOT NULL,
               first_window_end INTEGER NOT NULL,
               last_window_start INTEGER NOT NULL,
-              last_window_end INTEGER NOT NULL
+              last_window_end INTEGER NOT NULL,
+              text_size TEXT NOT NULL DEFAULT 'standard'
             )
           ''');
           await db.execute('''
@@ -54,6 +55,13 @@ class AttendanceDatabase {
             )
           ''');
           await _createHolidayTables(db);
+        },
+        onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 5) {
+            await db.execute(
+              "ALTER TABLE attendance_settings ADD COLUMN text_size TEXT NOT NULL DEFAULT 'standard'",
+            );
+          }
         },
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:signals/signals_flutter.dart';
 
 import 'domain/repositories/attendance_repository.dart';
 import 'domain/repositories/holiday_calendar_repository.dart';
@@ -77,10 +78,21 @@ class _MyAppState extends State<MyApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      builder: (context, child) => MediaQuery(
-        // 考勤时间统一按 24 小时制展示，避免受到系统设置影响。
-        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
-        child: child!,
+      builder: (context, child) => SignalBuilder(
+        dependencies: [_store.settings],
+        builder: (context) {
+          final mediaQuery = MediaQuery.of(context);
+          final preset = _store.settings.value.textSize;
+          final systemScale = mediaQuery.textScaler.scale(1);
+          return MediaQuery(
+            // 考勤时间统一按 24 小时制展示，避免受到系统设置影响。
+            data: mediaQuery.copyWith(
+              alwaysUse24HourFormat: true,
+              textScaler: TextScaler.linear(systemScale * preset.scale),
+            ),
+            child: child!,
+          );
+        },
       ),
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
