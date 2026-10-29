@@ -28,7 +28,7 @@ class AppStore {
     this.calculator = const CalculateAttendance(),
     this.monthlyCalculator = const CalculateMonthlySummary(),
   }) {
-    todayRecord = computed(() => recordFor(DateTime.now()));
+    todayRecord = computed(() => recordFor(todayDate.value));
     monthlyRecords = computed(() {
       final month = selectedHistoryMonth.value;
       return List.unmodifiable(
@@ -62,6 +62,8 @@ class AppStore {
   // 对外暴露不可变列表，避免页面直接修改共享状态。
   final records = signal<List<AttendanceRecord>>(const []);
   final settings = signal(const AttendanceSettings());
+  // 由签到页的时钟在跨日或从后台恢复时刷新，避免 DateTime.now() 成为不可追踪依赖。
+  final todayDate = signal(DateTimeService.dateOnly(DateTime.now()));
   final isLoading = signal(true);
   final loadError = signal<String?>(null);
   // 月份统一归一化为该月第一天，便于比较和加载年度作息表。
@@ -77,6 +79,13 @@ class AppStore {
 
   AttendanceRecord? recordFor(DateTime date) {
     return records.value.forDate(date);
+  }
+
+  void refreshTodayDate() {
+    final date = DateTimeService.dateOnly(DateTime.now());
+    if (!DateTimeService.isSameDate(todayDate.value, date)) {
+      todayDate.value = date;
+    }
   }
 
   AttendanceEvaluation evaluate(AttendanceRecord record) =>
@@ -276,6 +285,7 @@ class AppStore {
     monthlySummary.dispose();
     records.dispose();
     settings.dispose();
+    todayDate.dispose();
     isLoading.dispose();
     loadError.dispose();
     selectedHistoryMonth.dispose();

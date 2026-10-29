@@ -27,7 +27,7 @@ class CheckInPage extends SignalWidget {
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
             sliver: SliverList.list(
               children: [
-                const _CurrentTimeCard(),
+                _CurrentTimeCard(store: store),
                 const SizedBox(height: 16),
                 Card(
                   child: Padding(
@@ -114,30 +114,46 @@ class CheckInPage extends SignalWidget {
 }
 
 class _CurrentTimeCard extends SignalStatefulWidget {
-  const _CurrentTimeCard();
+  const _CurrentTimeCard({required this.store});
+
+  final AppStore store;
 
   @override
   State<_CurrentTimeCard> createState() => _CurrentTimeCardState();
 }
 
-class _CurrentTimeCardState extends State<_CurrentTimeCard> {
+class _CurrentTimeCardState extends State<_CurrentTimeCard>
+    with WidgetsBindingObserver {
   final _now = signal(DateTime.now());
   Timer? _timer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // 当前时间卡片独立刷新，避免每秒重建整个签到页面。
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) _now.value = DateTime.now();
+      if (mounted) _refreshClock();
     });
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     _now.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _refreshClock();
+  }
+
+  void _refreshClock() {
+    final now = DateTime.now();
+    widget.store.refreshTodayDate();
+    _now.value = now;
   }
 
   @override
