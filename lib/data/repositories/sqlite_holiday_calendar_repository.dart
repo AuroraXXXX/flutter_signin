@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../../domain/models/holiday_calendar.dart';
 import '../../domain/repositories/holiday_calendar_repository.dart';
+import '../../domain/services/date_time_service.dart';
 import '../services/attendance_database.dart';
 
 /// 使用 SQLite 缓存年度节假日和调休数据。
@@ -61,7 +62,7 @@ class SqliteHolidayCalendarRepository implements HolidayCalendarRepository {
       }, conflictAlgorithm: ConflictAlgorithm.replace);
       for (final entry in calendar.dates) {
         await transaction.insert('holiday_calendar', {
-          'date_key': _dateKey(entry.date),
+          'date_key': DateTimeService.dateKey(entry.date, separator: '-'),
           'year': calendar.year,
           'name': entry.name,
           'type': entry.type.jsonValue,
@@ -69,9 +70,4 @@ class SqliteHolidayCalendarRepository implements HolidayCalendarRepository {
       }
     });
   }
-
-  String _dateKey(DateTime date) =>
-      '${date.year.toString().padLeft(4, '0')}-'
-      '${date.month.toString().padLeft(2, '0')}-'
-      '${date.day.toString().padLeft(2, '0')}';
 }

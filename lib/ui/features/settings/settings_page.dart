@@ -10,6 +10,7 @@ import '../../app_store.dart';
 import '../../core/app_logo.dart';
 import '../../core/cupertino_picker_sheet.dart';
 import '../../core/formatters.dart';
+import '../../core/snackbars.dart';
 
 /// 考勤规则、数据导入导出和年度作息表管理页。
 class SettingsPage extends SignalStatefulWidget {
@@ -247,7 +248,7 @@ class _SettingsPageState extends State<SettingsPage> {
       final now = DateTime.now();
       final fileRange = range.isAll
           ? '全部'
-          : '${_compactDate(range.start!)}_${_compactDate(range.end!)}';
+          : '${formatCompactDate(range.start!)}_${formatCompactDate(range.end!)}';
       final path = await FilePicker.platform.saveFile(
         dialogTitle: '导出签到记录',
         fileName:
@@ -260,14 +261,10 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       );
       if (!mounted || path == null) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('签到记录导出成功')));
+      context.showMessage('签到记录导出成功');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('CSV 导出失败：$error')));
+      context.showError('CSV 导出失败：$error');
     }
   }
 
@@ -354,9 +351,6 @@ class _SettingsPageState extends State<SettingsPage> {
     return result;
   }
 
-  String _compactDate(DateTime date) =>
-      '${date.year}${date.month.toString().padLeft(2, '0')}${date.day.toString().padLeft(2, '0')}';
-
   Future<void> _importAttendanceCsv() async {
     try {
       final result = await FilePicker.platform.pickFiles(
@@ -387,14 +381,10 @@ class _SettingsPageState extends State<SettingsPage> {
       await widget.store.saveImportedAttendance(imported, overwrite: overwrite);
       if (!mounted) return;
       final count = overwrite ? imported.length : imported.length - existing;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('CSV 导入成功：新增或更新 $count 条记录')));
+      context.showMessage('CSV 导入成功：新增或更新 $count 条记录');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('CSV 导入失败：$error')));
+      context.showError('CSV 导入失败：$error');
     }
   }
 
@@ -457,14 +447,10 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       final calendar = await widget.store.importHolidayCalendarJson(json);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('${calendar.year} 年作息表导入成功')));
+      context.showMessage('${calendar.year} 年作息表导入成功');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('JSON 导入失败：$error')));
+      context.showError('JSON 导入失败：$error');
     }
   }
 
@@ -527,14 +513,10 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       await widget.store.saveSettings(_draft.value);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('设置已保存，历史状态已按新规则更新')));
+      context.showMessage('设置已保存，历史状态已按新规则更新');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('设置保存失败：$error')));
+      context.showError('设置保存失败：$error');
     } finally {
       if (mounted) _isSaving.value = false;
     }
@@ -571,10 +553,7 @@ class _AboutAppCard extends StatelessWidget {
                 children: [
                   Text('签到系统', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 4),
-                  Text(
-                    '记录每日签到与有效工时',
-                    style: theme.textTheme.bodySmall,
-                  ),
+                  Text('记录每日签到与有效工时', style: theme.textTheme.bodySmall),
                 ],
               ),
             ),

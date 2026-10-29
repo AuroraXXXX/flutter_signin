@@ -1,5 +1,6 @@
 import '../../domain/models/attendance_evaluation.dart';
 import '../../domain/models/attendance_record.dart';
+import '../../domain/services/date_time_service.dart';
 
 /// UI 使用的日期、时间和考勤状态中文格式化函数。
 String formatDate(DateTime value) =>
@@ -9,6 +10,9 @@ String formatDate(DateTime value) =>
 String formatShortDate(DateTime value) =>
     '${value.month.toString().padLeft(2, '0')}-'
     '${value.day.toString().padLeft(2, '0')}';
+
+String formatCompactDate(DateTime value) =>
+    DateTimeService.dateKey(value, separator: '');
 
 String formatTime(DateTime value) =>
     '${value.hour.toString().padLeft(2, '0')}:'

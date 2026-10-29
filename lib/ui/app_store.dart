@@ -7,12 +7,14 @@ import '../domain/models/attendance_record.dart';
 import '../domain/models/attendance_settings.dart';
 import '../domain/models/holiday_calendar.dart';
 import '../domain/models/monthly_attendance_summary.dart';
+import '../domain/extensions/attendance_record_extensions.dart';
 import '../domain/repositories/attendance_repository.dart';
 import '../domain/repositories/holiday_calendar_repository.dart';
 import '../domain/repositories/settings_repository.dart';
 import '../domain/services/holiday_calendar_service.dart';
 import '../domain/services/attendance_csv_service.dart';
 import '../domain/services/attendance_time_service.dart';
+import '../domain/services/date_time_service.dart';
 import '../domain/use_cases/calculate_attendance.dart';
 import '../domain/use_cases/calculate_monthly_summary.dart';
 
@@ -31,9 +33,7 @@ class AppStore {
       final month = selectedHistoryMonth.value;
       return List.unmodifiable(
         records.value.where(
-          (record) =>
-              record.date.year == month.year &&
-              record.date.month == month.month,
+          (record) => DateTimeService.isSameMonth(record.date, month),
         ),
       );
     });
@@ -76,10 +76,7 @@ class AppStore {
   late final Computed<MonthlyAttendanceSummary?> monthlySummary;
 
   AttendanceRecord? recordFor(DateTime date) {
-    for (final record in records.value) {
-      if (_sameDate(record.date, date)) return record;
-    }
-    return null;
+    return records.value.forDate(date);
   }
 
   AttendanceEvaluation evaluate(AttendanceRecord record) =>
@@ -109,10 +106,8 @@ class AppStore {
   }
 
   Future<void> selectHistoryMonth(DateTime month) async {
-    final normalized = DateTime(month.year, month.month);
-    if (normalized.isAfter(
-      DateTime(DateTime.now().year, DateTime.now().month),
-    )) {
+    final normalized = DateTimeService.monthOnly(month);
+    if (normalized.isAfter(DateTimeService.monthOnly(DateTime.now()))) {
       return;
     }
     selectedHistoryMonth.value = normalized;
@@ -174,7 +169,7 @@ class AppStore {
         candidate.timezone,
       );
       final localNow = AttendanceTimeService.localWallTime(nowUtc, offset);
-      if (_sameDate(localNow, candidate.date)) {
+      if (DateTimeService.isSameDate(localNow, candidate.date)) {
         existing = candidate;
         break;
       }
@@ -229,23 +224,19 @@ class AppStore {
 
   Uint8List exportAttendanceCsv({DateTime? startDate, DateTime? endDate}) {
     final filtered = records.value.where((record) {
-      final date = DateTime(
-        record.date.year,
-        record.date.month,
-        record.date.day,
-      );
+      final date = DateTimeService.dateOnly(record.date);
       final start = startDate == null
           ? null
-          : DateTime(startDate.year, startDate.month, startDate.day);
-      final end = endDate == null
-          ? null
-          : DateTime(endDate.year, endDate.month, endDate.day);
+          : DateTimeService.dateOnly(startDate);
+      final end = endDate == null ? null : DateTimeService.dateOnly(endDate);
       return (start == null || !date.isBefore(start)) &&
           (end == null || !date.isAfter(end));
     }).toList();
     final statuses = <String, List<AttendanceStatus>>{};
     for (final record in filtered) {
-      statuses[_dateKey(record.date)] = evaluate(record).statuses;
+      statuses[DateTimeService.dateKey(record.date)] = evaluate(
+        record,
+      ).statuses;
     }
     return Uint8List.fromList(
       utf8.encode(_attendanceCsv.encode(filtered, statuses: statuses)),
@@ -292,12 +283,4 @@ class AppStore {
     isCalendarLoading.dispose();
     calendarError.dispose();
   }
-
-  bool _sameDate(DateTime first, DateTime second) =>
-      first.year == second.year &&
-      first.month == second.month &&
-      first.day == second.day;
-
-  String _dateKey(DateTime date) =>
-      '${date.year.toString().padLeft(4, '0')}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}';
 }

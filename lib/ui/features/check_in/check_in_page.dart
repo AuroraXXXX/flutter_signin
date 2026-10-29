@@ -5,6 +5,7 @@ import 'package:signals/signals_flutter.dart';
 
 import '../../app_store.dart';
 import '../../core/formatters.dart';
+import '../../core/snackbars.dart';
 
 /// 今日签到页：展示当前记录、考勤评估结果并执行签到操作。
 class CheckInPage extends SignalWidget {
@@ -104,14 +105,10 @@ class CheckInPage extends SignalWidget {
     try {
       final first = await store.checkIn();
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(first ? '首次签到成功' : '末次签到时间已更新')));
+      context.showMessage(first ? '首次签到成功' : '末次签到时间已更新');
     } catch (error) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('签到失败：$error')));
+      context.showError('签到失败：$error');
     }
   }
 }

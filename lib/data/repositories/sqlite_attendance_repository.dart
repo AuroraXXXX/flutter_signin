@@ -1,6 +1,7 @@
 import '../../domain/models/attendance_record.dart';
 import '../../domain/repositories/attendance_repository.dart';
 import '../../domain/services/attendance_time_service.dart';
+import '../../domain/services/date_time_service.dart';
 import '../services/attendance_database.dart';
 
 /// 使用 SQLite 保存签到记录的 Repository 实现。
@@ -21,26 +22,8 @@ class SqliteAttendanceRepository implements AttendanceRepository {
   @override
   Future<AttendanceRecord> save(AttendanceRecord record) async {
     final now = DateTime.now().toIso8601String();
-    final offset = AttendanceTimeService.parseOffsetMinutes(record.timezone);
-    final firstUtc =
-        record.firstCheckInUtc ??
-        AttendanceTimeService.utcFromLocal(record.firstCheckIn, offset);
-    final lastUtc =
-        record.lastCheckInUtc ??
-        AttendanceTimeService.utcFromLocal(record.lastCheckIn, offset);
     // 数据库同时保存本地显示时间和 UTC 时间：前者用于展示，后者用于计算时长。
-    final values = <String, Object?>{
-      'date_key': _dateKey(record.date),
-      'first_check_in_time': _time(record.firstCheckIn),
-      'last_check_in_time': _time(record.lastCheckIn),
-      'first_check_in_utc': firstUtc.toIso8601String(),
-      'last_check_in_utc': lastUtc.toIso8601String(),
-      'note': record.note,
-      'timezone': record.timezone,
-      'timezone_offset_minutes': offset,
-      'attendance_source': record.attendanceSource.name,
-      'updated_at': now,
-    };
+    final values = _values(record, now);
 
     if (record.id == null) {
       values['created_at'] = now;
@@ -69,7 +52,7 @@ class SqliteAttendanceRepository implements AttendanceRepository {
           'attendance_records',
           columns: ['id'],
           where: 'date_key = ?',
-          whereArgs: [_dateKey(record.date)],
+          whereArgs: [DateTimeService.dateKey(record.date)],
           limit: 1,
         );
         if (existing.isNotEmpty) {
@@ -79,7 +62,7 @@ class SqliteAttendanceRepository implements AttendanceRepository {
             'attendance_records',
             _values(record, DateTime.now().toIso8601String()),
             where: 'date_key = ?',
-            whereArgs: [_dateKey(record.date)],
+            whereArgs: [DateTimeService.dateKey(record.date)],
           );
         } else {
           final now = DateTime.now().toIso8601String();
@@ -119,9 +102,9 @@ class SqliteAttendanceRepository implements AttendanceRepository {
   }
 
   Map<String, Object?> _values(AttendanceRecord record, String now) => {
-    'date_key': _dateKey(record.date),
-    'first_check_in_time': _time(record.firstCheckIn),
-    'last_check_in_time': _time(record.lastCheckIn),
+    'date_key': DateTimeService.dateKey(record.date),
+    'first_check_in_time': DateTimeService.timeKey(record.firstCheckIn),
+    'last_check_in_time': DateTimeService.timeKey(record.lastCheckIn),
     'first_check_in_utc':
         (record.firstCheckInUtc ??
                 AttendanceTimeService.utcFromLocal(
@@ -145,35 +128,11 @@ class SqliteAttendanceRepository implements AttendanceRepository {
     'updated_at': now,
   };
 
-  String _dateKey(DateTime date) =>
-      '${date.year.toString().padLeft(4, '0')}/'
-      '${date.month.toString().padLeft(2, '0')}/'
-      '${date.day.toString().padLeft(2, '0')}';
-
-  String _time(DateTime date) => [
-    date.hour.toString().padLeft(2, '0'),
-    date.minute.toString().padLeft(2, '0'),
-    date.second.toString().padLeft(2, '0'),
-  ].join(':');
-
   DateTime _parseDate(String value) {
-    final parts = value.split(RegExp(r'[-/]'));
-    return DateTime(
-      int.parse(parts[0]),
-      int.parse(parts[1]),
-      int.parse(parts[2]),
-    );
+    return DateTimeService.parseDateKey(value);
   }
 
   DateTime _combine(DateTime date, String value) {
-    final parts = value.split(':');
-    return DateTime(
-      date.year,
-      date.month,
-      date.day,
-      int.parse(parts[0]),
-      int.parse(parts[1]),
-      int.parse(parts[2]),
-    );
+    return DateTimeService.combine(date, value);
   }
 }

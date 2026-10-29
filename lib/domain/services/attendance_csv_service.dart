@@ -1,5 +1,6 @@
 import '../models/attendance_record.dart';
 import 'attendance_time_service.dart';
+import 'date_time_service.dart';
 
 /// CSV 内容不符合签到数据格式时抛出的异常。
 class AttendanceCsvException implements Exception {
@@ -32,7 +33,7 @@ class AttendanceCsvService {
     // BOM 让 Windows/Excel 按 UTF-8 识别中文，而不是显示乱码。
     final lines = <String>[_encodeRow(headers)];
     for (final record in records) {
-      final key = _dateKey(record.date);
+      final key = DateTimeService.dateKey(record.date);
       lines.add(
         _encodeRow([
           key,
@@ -68,8 +69,8 @@ class AttendanceCsvService {
         throw AttendanceCsvException('第 $rowNumber 行字段数量不正确');
       }
       try {
-        final date = _parseDate(row[0]);
-        final dateKey = _dateKey(date);
+        final date = DateTimeService.parseDateKey(row[0]);
+        final dateKey = DateTimeService.dateKey(date);
         if (!dates.add(dateKey)) {
           throw AttendanceCsvException('第 $rowNumber 行日期重复：$dateKey');
         }
@@ -78,8 +79,8 @@ class AttendanceCsvService {
         if (row[1].isEmpty || row[2].isEmpty) {
           throw const AttendanceCsvException('签到记录必须包含首次和末次时间');
         }
-        final first = _combine(date, row[1]);
-        final last = _combine(date, row[2]);
+        final first = DateTimeService.combine(date, row[1]);
+        final last = DateTimeService.combine(date, row[2]);
         if (last.isBefore(first)) {
           throw const AttendanceCsvException('末次签到时间早于首次签到时间');
         }
@@ -192,34 +193,7 @@ class AttendanceCsvService {
     return rows;
   }
 
-  DateTime _parseDate(String value) {
-    final parts = value.split('/');
-    if (parts.length != 3) throw const FormatException('日期必须是 yyyy/MM/dd');
-    return DateTime(
-      int.parse(parts[0]),
-      int.parse(parts[1]),
-      int.parse(parts[2]),
-    );
-  }
-
-  DateTime _combine(DateTime date, String value) {
-    final parts = value.split(':');
-    if (parts.length != 3) throw const FormatException('时间必须是 HH:mm:ss');
-    return DateTime(
-      date.year,
-      date.month,
-      date.day,
-      int.parse(parts[0]),
-      int.parse(parts[1]),
-      int.parse(parts[2]),
-    );
-  }
-
-  String _dateKey(DateTime date) =>
-      '${date.year.toString().padLeft(4, '0')}/${date.month.toString().padLeft(2, '0')}/${date.day.toString().padLeft(2, '0')}';
-
-  String _time(DateTime date) =>
-      '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}:${date.second.toString().padLeft(2, '0')}';
+  String _time(DateTime date) => DateTimeService.timeKey(date);
 
   bool _sameValues(List<String> first, List<String> second) =>
       first.length == second.length &&

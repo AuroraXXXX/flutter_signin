@@ -1,3 +1,5 @@
+import '../services/date_time_service.dart';
+
 /// 作息表中特殊日期的类型。
 enum HolidayDateType {
   publicHoliday('public_holiday'),
@@ -45,11 +47,7 @@ class HolidayCalendarYear {
 
   HolidayDate? entryFor(DateTime date) {
     for (final entry in dates) {
-      if (entry.date.year == date.year &&
-          entry.date.month == date.month &&
-          entry.date.day == date.day) {
-        return entry;
-      }
+      if (DateTimeService.isSameDate(entry.date, date)) return entry;
     }
     return null;
   }

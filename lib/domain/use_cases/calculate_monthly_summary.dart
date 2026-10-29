@@ -2,6 +2,8 @@ import '../models/attendance_record.dart';
 import '../models/attendance_settings.dart';
 import '../models/holiday_calendar.dart';
 import '../models/monthly_attendance_summary.dart';
+import '../extensions/attendance_record_extensions.dart';
+import '../services/date_time_service.dart';
 import 'calculate_attendance.dart';
 
 /// 根据年度作息表汇总某月的工作日和有效工时。
@@ -19,10 +21,10 @@ class CalculateMonthlySummary {
     required AttendanceSettings settings,
     required HolidayCalendarYear calendar,
   }) {
-    final firstDay = DateTime(month.year, month.month);
+    final firstDay = DateTimeService.monthOnly(month);
     final lastDay = DateTime(month.year, month.month + 1, 0);
-    final currentDay = DateTime(now.year, now.month, now.day);
-    final isCurrentMonth = month.year == now.year && month.month == now.month;
+    final currentDay = DateTimeService.dateOnly(now);
+    final isCurrentMonth = DateTimeService.isSameMonth(month, now);
     // 当前月只统计到今天，历史月份则统计整月。
     final endDay = isCurrentMonth && currentDay.isBefore(lastDay)
         ? currentDay
@@ -40,7 +42,7 @@ class CalculateMonthlySummary {
       if (!_isWorkday(day, calendar)) continue;
       workdayCount++;
 
-      final record = _recordFor(records, day);
+      final record = records.forDate(day);
       if (record == null) continue;
       checkedDayCount++;
       totalValidMinutes += attendanceCalculator(
@@ -67,16 +69,5 @@ class CalculateMonthlySummary {
       return entry.type == HolidayDateType.transferWorkday;
     }
     return date.weekday >= DateTime.monday && date.weekday <= DateTime.friday;
-  }
-
-  AttendanceRecord? _recordFor(List<AttendanceRecord> records, DateTime date) {
-    for (final record in records) {
-      if (record.date.year == date.year &&
-          record.date.month == date.month &&
-          record.date.day == date.day) {
-        return record;
-      }
-    }
-    return null;
   }
 }

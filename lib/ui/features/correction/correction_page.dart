@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:signals/signals_flutter.dart';
 
 import '../../../domain/models/attendance_record.dart';
+import '../../../domain/extensions/attendance_record_extensions.dart';
+import '../../../domain/services/date_time_service.dart';
 import '../../app_store.dart';
 import '../../core/cupertino_picker_sheet.dart';
 import '../../core/formatters.dart';
+import '../../core/snackbars.dart';
 
 /// 补签页，允许选择过去日期并编辑该日期的首次/末次签到时间。
 class CorrectionPage extends SignalWidget {
@@ -45,7 +48,7 @@ class _CorrectionFormState extends State<_CorrectionForm> {
 
   DateTime get _today {
     final now = DateTime.now();
-    return DateTime(now.year, now.month, now.day);
+    return DateTimeService.dateOnly(now);
   }
 
   @override
@@ -210,10 +213,7 @@ class _CorrectionFormState extends State<_CorrectionForm> {
   }
 
   AttendanceRecord? _recordFor(DateTime date) {
-    for (final record in widget.records) {
-      if (_sameDate(record.date, date)) return record;
-    }
-    return null;
+    return widget.records.forDate(date);
   }
 
   void _selectDate(DateTime date) {
@@ -287,9 +287,7 @@ class _CorrectionFormState extends State<_CorrectionForm> {
         _error = null;
         _isSaving = false;
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('补签保存成功，表单已清空')));
+      context.showMessage('补签保存成功，表单已清空');
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -313,9 +311,7 @@ class _CorrectionFormState extends State<_CorrectionForm> {
   bool _sameDate(DateTime? first, DateTime? second) =>
       first != null &&
       second != null &&
-      first.year == second.year &&
-      first.month == second.month &&
-      first.day == second.day;
+      DateTimeService.isSameDate(first, second);
 }
 
 class _CalendarDay extends StatelessWidget {

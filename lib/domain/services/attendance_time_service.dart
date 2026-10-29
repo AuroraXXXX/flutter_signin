@@ -10,10 +10,15 @@ class AttendanceTimeService {
   }
 
   static int parseOffsetMinutes(String value) {
+    if (value.isEmpty || value == 'Z' || value == 'UTC') return 0;
     final match = RegExp(r'^([+-])(\d{2}):(\d{2})$').firstMatch(value);
     if (match == null) throw FormatException('时区格式不正确：$value');
-    final minutes =
-        int.parse(match.group(2)!) * 60 + int.parse(match.group(3)!);
+    final hours = int.parse(match.group(2)!);
+    final remainingMinutes = int.parse(match.group(3)!);
+    if (remainingMinutes >= 60 || hours > 23) {
+      throw FormatException('时区格式不正确：$value');
+    }
+    final minutes = hours * 60 + remainingMinutes;
     return match.group(1) == '-' ? -minutes : minutes;
   }
 
