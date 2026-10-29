@@ -13,6 +13,11 @@ import 'domain/repositories/settings_repository.dart';
 import 'domain/services/holiday_calendar_service.dart';
 import 'ui/core/app_logo.dart';
 
+/// 应用启动引导 Widget。
+///
+/// 它位于 [MyApp] 外层，负责完成异步基础设施初始化：打开数据库、创建
+/// Repository 和远程服务。初始化期间显示加载页面或错误页面，成功后再把
+/// 这些依赖传递给 [MyApp]。
 class BootstrapApp extends SignalStatefulWidget {
   const BootstrapApp({super.key});
 
@@ -22,18 +27,25 @@ class BootstrapApp extends SignalStatefulWidget {
 
 class _BootstrapAppState extends State<BootstrapApp> {
   // 依赖异步初始化完成前为 null，界面此时显示加载状态。
+  // 使用 signal 是为了让初始化完成或失败后自动触发界面更新。
   final _dependencies = signal<_AppDependencies?>(null);
+
+  // 保存启动失败原因，用于错误页面展示。
   final _error = signal<String?>(null);
+
+  // true 表示正在打开数据库或创建启动依赖。
   final _isLoading = signal(true);
 
   @override
   void initState() {
     super.initState();
+    // 启动阶段只执行一次初始化；失败后用户可通过“重试”再次调用它。
     _initialize();
   }
 
   @override
   void dispose() {
+    // BootstrapApp 不再使用时释放 signals，避免保留无效的响应式监听。
     _dependencies.dispose();
     _error.dispose();
     _isLoading.dispose();
@@ -44,6 +56,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
   Widget build(BuildContext context) {
     final dependencies = _dependencies.value;
     if (dependencies != null) {
+      // 数据库和各项依赖已经准备好，切换到正式应用。
       return MyApp(
         attendanceRepository: dependencies.attendanceRepository,
         settingsRepository: dependencies.settingsRepository,
@@ -52,6 +65,8 @@ class _BootstrapAppState extends State<BootstrapApp> {
       );
     }
 
+    // 初始化阶段使用一个临时 MaterialApp 承载加载页或错误页。
+    // 初始化成功后，该 MaterialApp 会被 MyApp 内部的正式 MaterialApp 替换。
     return MaterialApp(
       title: '签到系统',
       debugShowCheckedModeBanner: false,
@@ -106,12 +121,13 @@ class _BootstrapAppState extends State<BootstrapApp> {
   }
 
   Future<void> _initialize() async {
+    // 每次初始化或重试前，先清除旧错误并显示加载状态。
     batch(() {
       _isLoading.value = true;
       _error.value = null;
     });
     try {
-      // 数据库只在启动阶段打开一次，Repository 共享同一个连接。
+      // 数据库只在启动阶段打开一次，三个 Repository 共享同一个连接。
       final database = await AttendanceDatabase.open();
       _dependencies.value = _AppDependencies(
         attendanceRepository: SqliteAttendanceRepository(database),
@@ -120,6 +136,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
         holidayCalendarService: RemoteHolidayCalendarService(),
       );
     } catch (error) {
+      // 数据库打开失败时不进入 MyApp，而是保留在错误页面，允许用户重试。
       _error.value = error.toString();
     } finally {
       _isLoading.value = false;
@@ -127,6 +144,10 @@ class _BootstrapAppState extends State<BootstrapApp> {
   }
 }
 
+/// 启动完成后传递给 [MyApp] 的依赖集合。
+///
+/// 将这些对象集中保存，可以避免在 Widget 树中逐个传递数据库和 Repository，
+/// 同时保证所有 Repository 使用同一个数据库连接。
 class _AppDependencies {
   const _AppDependencies({
     required this.attendanceRepository,
