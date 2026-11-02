@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:signals/signals_flutter.dart';
 
@@ -150,7 +151,9 @@ class HistoryPage extends SignalWidget {
   }
 }
 
-class _MonthlySummaryCard extends StatelessWidget {
+enum _AverageBasis { workdays, checkedDays }
+
+class _MonthlySummaryCard extends StatefulWidget {
   const _MonthlySummaryCard({
     required this.month,
     required this.summary,
@@ -168,8 +171,15 @@ class _MonthlySummaryCard extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
+  State<_MonthlySummaryCard> createState() => _MonthlySummaryCardState();
+}
+
+class _MonthlySummaryCardState extends State<_MonthlySummaryCard> {
+  _AverageBasis _averageBasis = _AverageBasis.checkedDays;
+
+  @override
   Widget build(BuildContext context) {
-    if (isLoading) {
+    if (widget.isLoading) {
       return const Card(
         child: Padding(
           padding: EdgeInsets.all(24),
@@ -177,7 +187,7 @@ class _MonthlySummaryCard extends StatelessWidget {
         ),
       );
     }
-    if (summary == null) {
+    if (widget.summary == null) {
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -186,10 +196,10 @@ class _MonthlySummaryCard extends StatelessWidget {
             children: [
               const Text('暂时无法计算月度统计'),
               const SizedBox(height: 4),
-              Text(error ?? '缺少该年度作息表'),
+              Text(widget.error ?? '缺少该年度作息表'),
               const SizedBox(height: 8),
               TextButton.icon(
-                onPressed: onRetry,
+                onPressed: widget.onRetry,
                 icon: const Icon(Icons.sync),
                 label: const Text('重新同步'),
               ),
@@ -198,7 +208,14 @@ class _MonthlySummaryCard extends StatelessWidget {
         ),
       );
     }
-    final value = summary!;
+    final value = widget.summary!;
+    final averageDayCount = switch (_averageBasis) {
+      _AverageBasis.workdays => value.workdayCount,
+      _AverageBasis.checkedDays => value.checkedDayCount,
+    };
+    final averageValidMinutes = averageDayCount == 0
+        ? 0
+        : (value.totalValidMinutes / averageDayCount).round();
     return Card.filled(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -211,14 +228,14 @@ class _MonthlySummaryCard extends StatelessWidget {
                   child: Align(
                     alignment: Alignment.topLeft,
                     child: OutlinedButton.icon(
-                      onPressed: onSelectMonth,
+                      onPressed: widget.onSelectMonth,
                       icon: const Icon(Icons.calendar_month),
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(0, 56),
                         padding: const EdgeInsets.symmetric(horizontal: 14),
                       ),
                       label: Text(
-                        '${month.year}年${month.month.toString().padLeft(2, '0')}月',
+                        '${widget.month.year}年${widget.month.month.toString().padLeft(2, '0')}月',
                       ),
                     ),
                   ),
@@ -231,7 +248,7 @@ class _MonthlySummaryCard extends StatelessWidget {
                       const Text('月平均有效签到时长'),
                       const SizedBox(height: 6),
                       Text(
-                        formatMinutes(value.averageValidMinutes),
+                        formatMinutes(averageValidMinutes),
                         textAlign: TextAlign.end,
                         style: Theme.of(context).textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.bold),
@@ -243,11 +260,36 @@ class _MonthlySummaryCard extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _SummaryValue(label: '应上班', value: '${value.workdayCount}天'),
-                _SummaryValue(label: '有签到', value: '${value.checkedDayCount}天'),
-                _SummaryValue(label: '漏签', value: '${value.missedDayCount}天'),
+                const Text('统计方式'),
+                const Spacer(),
+                Text(
+                  '应签到',
+                  style: _optionStyle(
+                    selected: _averageBasis == _AverageBasis.workdays,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                CupertinoSwitch(
+                  value: _averageBasis == _AverageBasis.checkedDays,
+                  activeTrackColor: Colors.blue.shade700,
+                  inactiveTrackColor: Colors.blue.shade200,
+                  thumbColor: Colors.white,
+                  onChanged: (checkedDays) {
+                    setState(() {
+                      _averageBasis = checkedDays
+                          ? _AverageBasis.checkedDays
+                          : _AverageBasis.workdays;
+                    });
+                  },
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '已签到',
+                  style: _optionStyle(
+                    selected: _averageBasis == _AverageBasis.checkedDays,
+                  ),
+                ),
               ],
             ),
           ],
@@ -255,24 +297,11 @@ class _MonthlySummaryCard extends StatelessWidget {
       ),
     );
   }
-}
 
-class _SummaryValue extends StatelessWidget {
-  const _SummaryValue({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
-        const SizedBox(height: 2),
-        Text(label, style: Theme.of(context).textTheme.bodySmall),
-      ],
-    );
-  }
+  TextStyle _optionStyle({required bool selected}) => TextStyle(
+    color: selected ? Colors.blue.shade700 : null,
+    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+  );
 }
 
 class _DetailRow extends StatelessWidget {
