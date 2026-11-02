@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:signals/signals_flutter.dart';
 
 import '../../../domain/models/attendance_record.dart';
+import '../../../domain/models/holiday_calendar.dart';
 import '../../../domain/extensions/attendance_record_extensions.dart';
 import '../../../domain/services/date_time_service.dart';
 import '../../app_store.dart';
@@ -45,10 +46,18 @@ class _CorrectionFormState extends State<_CorrectionForm> {
   final _noteController = TextEditingController();
   String? _error;
   bool _isSaving = false;
+  HolidayCalendarYear? _calendar;
+  int? _loadingCalendarYear;
 
   DateTime get _today {
     final now = DateTime.now();
     return DateTimeService.dateOnly(now);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCalendar();
   }
 
   @override
@@ -200,6 +209,7 @@ class _CorrectionFormState extends State<_CorrectionForm> {
                 return _CalendarDay(
                   date: date,
                   record: _recordFor(date),
+                  isWorkday: _isWorkday(date),
                   selected: _sameDate(date, _date),
                   disabled: date.isAfter(_today),
                   onTap: () => _selectDate(date),
@@ -214,6 +224,29 @@ class _CorrectionFormState extends State<_CorrectionForm> {
 
   AttendanceRecord? _recordFor(DateTime date) {
     return widget.records.forDate(date);
+  }
+
+  bool _isWorkday(DateTime date) {
+    final calendar = _calendar;
+    if (calendar != null && calendar.year == date.year) {
+      return calendar.isWorkday(date);
+    }
+    return date.weekday >= DateTime.monday && date.weekday <= DateTime.friday;
+  }
+
+  Future<void> _loadCalendar() async {
+    final year = _month.year;
+    if (_calendar?.year == year || _loadingCalendarYear == year) return;
+    _loadingCalendarYear = year;
+    try {
+      final calendar = await widget.store.getCalendarYear(year);
+      if (!mounted || _month.year != year) return;
+      setState(() => _calendar = calendar);
+    } catch (_) {
+      // 同步失败时暂按普通周一至周五显示，不阻塞补签操作。
+    } finally {
+      if (_loadingCalendarYear == year) _loadingCalendarYear = null;
+    }
   }
 
   void _selectDate(DateTime date) {
@@ -299,11 +332,15 @@ class _CorrectionFormState extends State<_CorrectionForm> {
     }
   }
 
-  void _previousMonth() =>
-      setState(() => _month = DateTime(_month.year, _month.month - 1));
+  void _previousMonth() {
+    setState(() => _month = DateTime(_month.year, _month.month - 1));
+    _loadCalendar();
+  }
 
-  void _nextMonth() =>
-      setState(() => _month = DateTime(_month.year, _month.month + 1));
+  void _nextMonth() {
+    setState(() => _month = DateTime(_month.year, _month.month + 1));
+    _loadCalendar();
+  }
 
   DateTime _combine(DateTime date, TimeOfDay time) =>
       DateTime(date.year, date.month, date.day, time.hour, time.minute);
@@ -318,6 +355,7 @@ class _CalendarDay extends StatelessWidget {
   const _CalendarDay({
     required this.date,
     required this.record,
+    required this.isWorkday,
     required this.selected,
     required this.disabled,
     required this.onTap,
@@ -325,6 +363,7 @@ class _CalendarDay extends StatelessWidget {
 
   final DateTime date;
   final AttendanceRecord? record;
+  final bool isWorkday;
   final bool selected;
   final bool disabled;
   final VoidCallback onTap;
@@ -332,15 +371,21 @@ class _CalendarDay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final normal = record == null || _isNormal(record!, context);
-    final statusColor = record == null
+    final today = DateTimeService.dateOnly(DateTime.now());
+    final missed = isWorkday && record == null && date.isBefore(today);
+    final normal = record != null && _isNormal(record!, context);
+    final background = missed
+        ? Colors.red.shade300
+        : isWorkday
+        ? Colors.yellow.shade100
+        : Colors.grey.shade200;
+    final statusColor = missed
+        ? Colors.white
+        : record == null
         ? scheme.onSurface
         : normal
-        ? Colors.green
-        : scheme.error;
-    final background = record == null
-        ? null
-        : statusColor.withValues(alpha: 0.14);
+        ? Colors.green.shade300
+        : Colors.red.shade300;
     return InkWell(
       onTap: disabled ? null : onTap,
       borderRadius: BorderRadius.circular(20),
@@ -362,7 +407,7 @@ class _CalendarDay extends StatelessWidget {
               color: disabled
                   ? scheme.onSurface.withValues(alpha: 0.25)
                   : statusColor,
-              fontWeight: record == null ? null : FontWeight.bold,
+              fontWeight: record == null && !missed ? null : FontWeight.bold,
             ),
           ),
         ),

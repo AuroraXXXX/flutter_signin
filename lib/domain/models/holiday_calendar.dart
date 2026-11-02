@@ -51,4 +51,13 @@ class HolidayCalendarYear {
     }
     return null;
   }
+
+  /// 特殊日期以作息表为准；未标记日期按周一至周五处理。
+  bool isWorkday(DateTime date) {
+    final entry = entryFor(date);
+    if (entry != null) {
+      return entry.type == HolidayDateType.transferWorkday;
+    }
+    return date.weekday >= DateTime.monday && date.weekday <= DateTime.friday;
+  }
 }

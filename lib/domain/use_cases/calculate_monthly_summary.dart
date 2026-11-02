@@ -32,6 +32,7 @@ class CalculateMonthlySummary {
 
     var workdayCount = 0;
     var checkedDayCount = 0;
+    var missedDayCount = 0;
     var totalValidMinutes = 0;
 
     for (
@@ -39,11 +40,14 @@ class CalculateMonthlySummary {
       !day.isAfter(endDay);
       day = day.add(const Duration(days: 1))
     ) {
-      if (!_isWorkday(day, calendar)) continue;
-      workdayCount++;
-
       final record = records.forDate(day);
-      if (record == null) continue;
+      final isWorkday = calendar.isWorkday(day);
+      if (isWorkday) workdayCount++;
+      if (record == null) {
+        // 当天尚未签到不立即算漏签，历史工作日才计入漏签。
+        if (isWorkday && day.isBefore(currentDay)) missedDayCount++;
+        continue;
+      }
       checkedDayCount++;
       totalValidMinutes += attendanceCalculator(
         record,
@@ -54,20 +58,11 @@ class CalculateMonthlySummary {
     return MonthlyAttendanceSummary(
       workdayCount: workdayCount,
       checkedDayCount: checkedDayCount,
-      missedDayCount: workdayCount - checkedDayCount,
+      missedDayCount: missedDayCount,
       totalValidMinutes: totalValidMinutes,
-      averageValidMinutes: workdayCount == 0
+      averageValidMinutes: checkedDayCount == 0
           ? 0
-          : (totalValidMinutes / workdayCount).round(),
+          : (totalValidMinutes / checkedDayCount).round(),
     );
-  }
-
-  // 作息表中的调休工作日优先级高于星期几；未标记日期按周一至周五处理。
-  bool _isWorkday(DateTime date, HolidayCalendarYear calendar) {
-    final entry = calendar.entryFor(date);
-    if (entry != null) {
-      return entry.type == HolidayDateType.transferWorkday;
-    }
-    return date.weekday >= DateTime.monday && date.weekday <= DateTime.friday;
   }
 }

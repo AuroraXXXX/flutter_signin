@@ -219,8 +219,6 @@ class _MonthlySummaryCard extends StatelessWidget {
                       ),
                       label: Text(
                         '${month.year}年${month.month.toString().padLeft(2, '0')}月',
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),

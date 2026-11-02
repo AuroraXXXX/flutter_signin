@@ -155,6 +155,19 @@ class AppStore {
     }
   }
 
+  /// 为不绑定历史页所选月份的页面获取年度作息表，不改动历史页状态。
+  Future<HolidayCalendarYear> getCalendarYear(int year) async {
+    final current = holidayCalendar.value;
+    if (current?.year == year) return current!;
+
+    var calendar = await holidayCalendarRepository.getYear(year);
+    if (calendar == null) {
+      calendar = await holidayCalendarService.fetchYear(year);
+      await holidayCalendarRepository.saveYear(calendar);
+    }
+    return calendar;
+  }
+
   Future<HolidayCalendarYear> importHolidayCalendarJson(String json) async {
     final calendar = holidayCalendarService.parseJson(json, source: '手动导入');
     await holidayCalendarRepository.saveYear(calendar);
